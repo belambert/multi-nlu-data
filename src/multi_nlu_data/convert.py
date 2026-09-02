@@ -8,19 +8,19 @@ from pathlib import Path
 
 import typer
 
-from multi_nlu_data.data import DATASETS, SPLITS
+from multi_nlu_data.data import Dataset, Split
 from multi_nlu_data.segment import segment_split, to_xml
 
 app = typer.Typer(help="Convert the Mix* datasets into per-intent XML.")
 
-DATASET = typer.Option("mixsnips", help=f"One of {', '.join(DATASETS)}.")
-SPLIT = typer.Option("train", help=f"One of {', '.join(SPLITS)}.")
+DATASET = typer.Option(Dataset.MIXSNIPS, help="Which corpus to convert.")
+SPLIT = typer.Option(Split.TRAIN, help="Which split to convert.")
 
 
 @app.command()
 def xml(
-    split: str = SPLIT,
-    dataset: str = DATASET,
+    split: Split = SPLIT,
+    dataset: Dataset = DATASET,
     out: Path = typer.Option(None, help="Write JSONL here instead of stdout."),
     llm: bool = typer.Option(False, help="Send unresolved rows to Fireworks."),
     model: str = typer.Option(
@@ -94,7 +94,7 @@ def report_failures(failed: list, out: Path | None) -> None:
 
 
 @app.command()
-def coverage(split: str = SPLIT, dataset: str = DATASET) -> None:
+def coverage(split: Split = SPLIT, dataset: Dataset = DATASET) -> None:
     """Report how much of a split the heuristics settle without an LLM."""
     done, todo = segment_split(split, dataset)
     by_source = collections.Counter(s.source for s in done)

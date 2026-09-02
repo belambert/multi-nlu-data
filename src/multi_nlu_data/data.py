@@ -5,14 +5,28 @@ through the same path.
 """
 
 from dataclasses import dataclass
+from enum import StrEnum
 
 from datasets import load_dataset
 
+
+class Dataset(StrEnum):
+    """Corpora we can load; also the choices Typer offers for --dataset."""
+
+    MIXSNIPS = "mixsnips"
+    MIXATIS = "mixatis"
+
+
+class Split(StrEnum):
+    TRAIN = "train"
+    VALIDATION = "validation"
+    TEST = "test"
+
+
 DATASETS = {
-    "mixsnips": "nahyeon00/mixsnips_clean",
-    "mixatis": "gamy0315/mixatis_clean",
+    Dataset.MIXSNIPS: "nahyeon00/mixsnips_clean",
+    Dataset.MIXATIS: "gamy0315/mixatis_clean",
 }
-SPLITS = ("train", "validation", "test")
 
 
 @dataclass
@@ -44,7 +58,7 @@ class Example:
         return slots
 
 
-def load(split: str = "train", dataset: str = "mixsnips") -> list[Example]:
+def load(split: str = Split.TRAIN, dataset: str = Dataset.MIXSNIPS) -> list[Example]:
     """Load a split; intents are stored as a single '#'-joined string."""
-    rows = load_dataset(DATASETS[dataset], split=split)
+    rows = load_dataset(DATASETS[Dataset(dataset)], split=Split(split))
     return [Example(r["token"], r["tag"], r["intent"][0].split("#")) for r in rows]

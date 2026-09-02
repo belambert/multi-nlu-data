@@ -89,7 +89,7 @@ def ask(client: Fireworks, ex: Example, model: str) -> dict | None:
         # completion budget and the answer comes back empty
         reasoning_effort="none",
         max_tokens=200,
-        prompt_cache_key="mixsnips-segment",
+        prompt_cache_key="mix-segment",
     )
     content = reply.choices[0].message.content
     if not content:

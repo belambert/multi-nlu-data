@@ -1,2 +1,1 @@
-def hello() -> str:
-    return "Hello from multi-nlu!"
+"""Data tooling for multi-intent NLU: the Mix* corpora and per-intent XML."""

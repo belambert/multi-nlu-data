@@ -6,10 +6,10 @@ elsewhere and consumes what this produces.
 
 Two datasets are supported, selected with `--dataset`:
 
-| `--dataset` | Source                                                                       | Train  | Validation | Test  | Intents |
-| ----------- | ---------------------------------------------------------------------------- | ------ | ---------- | ----- | ------- |
-| `mixsnips`  | [nahyeon00/mixsnips_clean](https://huggingface.co/datasets/nahyeon00/mixsnips_clean) | 39,776 | 2,198      | 2,199 | 7       |
-| `mixatis`   | [gamy0315/mixatis_clean](https://huggingface.co/datasets/gamy0315/mixatis_clean)     | 13,162 | 759        | 828   | 18      |
+| `--dataset` | Source                                                                       | Train  | Validation | Test  | Intents      | Slot types |
+| ----------- | ---------------------------------------------------------------------------- | ------ | ---------- | ----- | ------------ | ---------- |
+| `mixsnips`  | [nahyeon00/mixsnips_clean](https://huggingface.co/datasets/nahyeon00/mixsnips_clean) | 39,776 | 2,198      | 2,199 | 7            | 39         |
+| `mixatis`   | [gamy0315/mixatis_clean](https://huggingface.co/datasets/gamy0315/mixatis_clean)     | 13,162 | 759        | 828   | 18 (17 in train) | 74     |
 
 Both compose single-intent utterances into one utterance carrying one to three
 intents (e.g. "play anything by george formby jr, give zero points out of 6 to
@@ -70,7 +70,10 @@ requires inferring it from the slot type or token position.
 MixSNIPS has seven, inherited from SNIPS: `AddToPlaylist`, `BookRestaurant`,
 `GetWeather`, `PlayMusic`, `RateBook`, `SearchCreativeWork`,
 `SearchScreeningEvent`. One to three per utterance (450 / 1,249 / 500 of the
-2,199 test rows). MixATIS has 18 `atis_*` intents over the same 1–3 range.
+2,199 test rows). MixATIS has 18 `atis_*` intents over the same 1–3 range, but
+they are not distributed evenly across splits: 17 occur in train, 16 in test and
+14 in validation. `atis_day_name` appears in **test but never in train**, so any
+model evaluated on MixATIS faces one intent it cannot have learned.
 
 The `#`-joined list is alphabetically sorted in all 39,776 train rows, so its
 order says nothing about the order the intents appear in the utterance. Treat
@@ -142,10 +145,11 @@ How far that gets varies sharply by dataset:
 | `mixsnips`  | 8,277  | 26,713    | 4,786      | **88.0%**     |
 | `mixatis`   | 1,118  | 4,763     | 7,281      | **44.7%**     |
 
-MixATIS is much harder because its slot types are shared across intents —
-`fromloc.city_name` and `airline_name` appear under most of the 18 `atis_*`
-intents, so far fewer spans pin down a single one. Expect to spend roughly three
-times as much on the LLM fallback per row converted. Check before running:
+MixATIS is much harder because it has twice the slot types (74 vs 39) spread
+over more intents, and they are shared — `fromloc.city_name` and `airline_name`
+appear under most of the `atis_*` intents, so far fewer spans pin down a single
+one. Per row converted it sends **4.6× as many rows to the LLM** (55.3% of train
+versus 12.0%). Check before running:
 
     uv run multi-nlu-convert coverage --dataset mixatis --split train
 
@@ -203,7 +207,7 @@ the same way.
 
 Rows whose segmentation could not be settled are **not** in that file, since
 there is nothing to emit for them. They are written to a `.failed.jsonl` sidecar
-beside the output (`data/train.failed.jsonl`) with their tokens and intents, and
+beside the output (`data/mixsnips/train.failed.jsonl`) with their tokens and intents, and
 the run prints a warning naming the file. A clean full run leaves no sidecar at
 all; `wc -l` across the output and the sidecar should equal the split size.
 

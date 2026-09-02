@@ -4,18 +4,18 @@ import random
 
 import typer
 
-from multi_nlu_data.data import DATASETS, SPLITS, Example, load
+from multi_nlu_data.data import Dataset, Example, Split, load
 
 app = typer.Typer(help="Inspect the Mix* multi-intent NLU datasets.")
 
-DATASET = typer.Option("mixsnips", help=f"One of {', '.join(DATASETS)}.")
-SPLIT = typer.Option("train", help=f"One of {', '.join(SPLITS)}.")
+DATASET = typer.Option(Dataset.MIXSNIPS, help="Which corpus to load.")
+SPLIT = typer.Option(Split.TRAIN, help="Which split to load.")
 
 
 @app.command()
 def show(
-    split: str = SPLIT,
-    dataset: str = DATASET,
+    split: Split = SPLIT,
+    dataset: Dataset = DATASET,
     n: int = typer.Option(5, help="Number of examples to print."),
     seed: int | None = typer.Option(None, help="Sample randomly with this seed."),
 ) -> None:
@@ -31,7 +31,7 @@ def show(
 
 
 @app.command()
-def stats(split: str = SPLIT, dataset: str = DATASET) -> None:
+def stats(split: Split = SPLIT, dataset: Dataset = DATASET) -> None:
     """Print intent counts and utterance-length distribution for a split."""
     examples = load(split, dataset)
     counts: dict[str, int] = {}

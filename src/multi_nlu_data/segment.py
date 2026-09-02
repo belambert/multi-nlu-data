@@ -11,7 +11,7 @@ whichever corpus is loaded. Rows the heuristics cannot settle go to an LLM.
 from dataclasses import dataclass
 from xml.sax.saxutils import escape
 
-from multi_nlu_data.data import Example, load
+from multi_nlu_data.data import Dataset, Example, Split, load
 
 # boundary markers, strongest first; the strongest tier that matches a gap wins
 TIERS = [
@@ -39,7 +39,7 @@ class Segmentation:
 
 
 def segment_split(
-    split: str = "train", dataset: str = "mixsnips"
+    split: str = Split.TRAIN, dataset: str = Dataset.MIXSNIPS
 ) -> tuple[list[Segmentation], list[Example]]:
     """Segment a split heuristically, returning what resolved and what needs an LLM."""
     examples = load(split, dataset)
