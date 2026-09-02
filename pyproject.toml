@@ -1,0 +1,30 @@
+[project]
+name = "multi-nlu"
+version = "0.1.0"
+description = "Multi-intent NLU with open language models"
+readme = "README.md"
+authors = [
+    { name = "Ben Lambert", email = "blambert@gmail.com" }
+]
+requires-python = ">=3.13"
+dependencies = [
+    "datasets>=5.0.1",
+    "typer>=0.27.2",
+]
+
+[project.scripts]
+multi-nlu = "multi_nlu.cli:app"
+
+[build-system]
+requires = ["uv_build>=0.9.3,<0.10.0"]
+build-backend = "uv_build"
+
+[dependency-groups]
+dev = [
+    "black>=26.5.1",
+    "isort>=9.0.1",
+    "pytest>=9.1.1",
+]
+
+[tool.isort]
+profile = "black"
