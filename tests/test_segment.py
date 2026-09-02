@@ -1,4 +1,5 @@
 import json
+from pathlib import Path
 
 import pytest
 import typer
@@ -172,3 +173,14 @@ def test_card_fills_every_placeholder():
     card = render_card(DS.MIXSNIPS, "mixsnips-xml", "abc123")
     assert "{" not in card and "}" not in card
     assert "mixsnips-xml" in card and "abc123" in card
+
+
+def test_publish_data_dir_defaults_per_dataset(tmp_path, monkeypatch):
+    """--dataset mixatis must not silently publish whatever sits in data/."""
+    monkeypatch.chdir(tmp_path)
+    (tmp_path / "data" / "mixsnips").mkdir(parents=True)
+    (tmp_path / "data" / "mixsnips" / "train.jsonl").write_text('{"text": "a"}\n')
+
+    assert read_splits(Path("data") / DS.MIXSNIPS)["train"] == [{"text": "a"}]
+    with pytest.raises(typer.BadParameter):
+        read_splits(Path("data") / DS.MIXATIS)

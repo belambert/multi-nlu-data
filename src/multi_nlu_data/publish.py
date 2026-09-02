@@ -35,7 +35,7 @@ def push(
         Dataset.MIXSNIPS, help="Which corpus was converted."
     ),
     data: Path = typer.Option(
-        Path("data"), help="Directory holding the converted JSONL."
+        None, help="Converted JSONL directory; defaults to data/<dataset>."
     ),
     repo: str = typer.Option(
         None, help="Target repo id; defaults to <user>/<dataset>-xml."
@@ -51,11 +51,15 @@ def push(
     dry_run: bool = typer.Option(False, help="Report what would be pushed, then stop."),
 ) -> None:
     """Push the converted splits, adding a revision to an existing dataset."""
+    # tie the default to --dataset, so one corpus cannot be published as another
+    data = data or Path("data") / dataset
     splits = {} if card_only else read_splits(data)
     repo = repo or f"{whoami()['name']}/{dataset}-xml"
     rev = source_revision()
     message = message or f"Update from multi-nlu-data@{rev}"
 
+    if not card_only:
+        typer.echo(f"{data}/", err=True)
     for name, rows in splits.items():
         typer.echo(f"  {name:<12} {len(rows):>6} rows", err=True)
     typer.echo(f"-> {repo}  ({message}){' [card only]' if card_only else ''}", err=True)

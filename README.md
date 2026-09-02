@@ -188,7 +188,12 @@ corpus but resolves far less heuristically, so its train split makes about 1.5×
 as many LLM calls despite having a third of the rows.
 
 Give each dataset its own `--cache`, since the cache is keyed by utterance text
-and the two corpora are unrelated.
+and the two corpora are unrelated. Writing under `data/<dataset>/` is what
+`multi-nlu-publish` expects by default:
+
+    mkdir -p data/mixatis
+    uv run multi-nlu-convert xml --dataset mixatis --split train --llm --workers 32 \
+        --cache mixatis-cache.jsonl --out data/mixatis/train.jsonl
 
 Each split writes one JSON object per line:
 
@@ -256,10 +261,14 @@ Heuristic coverage on a split, without spending anything:
     uv run multi-nlu-publish --dry-run          # report what would be pushed
     uv run multi-nlu-publish
 
-It pushes to a **stable repo id** (`<user>/<dataset>-xml` unless `--repo` says
-otherwise). Hub datasets are git repos, so pushing the same id again adds a
-revision to the existing dataset rather than creating a new one — re-run it
-after regenerating and the dataset moves forward in place, with history kept.
+It reads `data/<dataset>/` and pushes to a **stable repo id**
+(`<user>/<dataset>-xml` unless `--repo` says otherwise). Both defaults follow
+`--dataset`, so one corpus cannot be published under another's name; override
+the source with `--data` if your files live elsewhere.
+
+Hub datasets are git repos, so pushing the same id again adds a revision to the
+existing dataset rather than creating a new one — re-run it after regenerating
+and the dataset moves forward in place, with history kept.
 
 Each commit is messaged `Update from multi-nlu-data@<rev>`, naming the git
 revision of this repo that produced it (suffixed `-dirty` when the tree has
