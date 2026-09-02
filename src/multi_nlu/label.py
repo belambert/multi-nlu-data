@@ -9,7 +9,8 @@ before it is accepted.
 import json
 import os
 import threading
-from concurrent.futures import ThreadPoolExecutor
+from collections.abc import Callable
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
 
 from fireworks import Fireworks
@@ -45,8 +46,12 @@ def label_all(
     model: str = DEFAULT_MODEL,
     cache: Path | None = None,
     workers: int = 8,
+    on_done: Callable[[], None] | None = None,
 ) -> tuple[list[Segmentation], list[Example]]:
-    """Label examples with the LLM, reusing any cached answers; returns (done, failed)."""
+    """Label examples with the LLM, reusing any cached answers; returns (done, failed).
+
+    `on_done` fires once per finished example, for progress reporting.
+    """
     client = Fireworks(api_key=os.environ["FIREWORKS_API_KEY"])
     seen = read_cache(cache) if cache else {}
 
@@ -57,8 +62,13 @@ def label_all(
             append_cache(cache, ex.text, answer)
         return seg
 
+    results: list[Segmentation | None] = [None] * len(examples)
     with ThreadPoolExecutor(workers) as pool:
-        results = list(pool.map(run, examples))
+        pending = {pool.submit(run, ex): i for i, ex in enumerate(examples)}
+        for future in as_completed(pending):
+            results[pending[future]] = future.result()
+            if on_done:
+                on_done()
 
     done = [s for s in results if s]
     failed = [ex for ex, s in zip(examples, results) if not s]

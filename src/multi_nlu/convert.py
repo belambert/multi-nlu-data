@@ -3,6 +3,7 @@
 import collections
 import json
 import os
+import sys
 from pathlib import Path
 
 import typer
@@ -38,7 +39,13 @@ def xml(
         from multi_nlu.label import DEFAULT_MODEL, label_all
 
         batch = todo[:limit] if limit else todo
-        labelled, failed = label_all(batch, model or DEFAULT_MODEL, cache, workers)
+        # on stderr, so a piped JSONL stream stays clean
+        with typer.progressbar(
+            length=len(batch), label="labelling", file=sys.stderr
+        ) as bar:
+            labelled, failed = label_all(
+                batch, model or DEFAULT_MODEL, cache, workers, lambda: bar.update(1)
+            )
         done += labelled
         failed += todo[len(batch) :]
         typer.echo(
