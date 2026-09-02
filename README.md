@@ -224,6 +224,55 @@ boundaries, so the 88% figure is the rate at which the heuristics reach a
 confident answer, not a measured accuracy. Spot-check a sample before treating
 the output as training data.
 
+## TODO
+
+### Publish The Converted Dataset To HuggingFace
+
+Upload the segmented, XML-tagged splits as a dataset in their own right. The
+card should carry the provenance chain below, the meaning of the `source` field
+(`single` / `heuristic` / `llm`), and the caveat above — the segmentation is
+approximate, so anyone using it should know which rows came from where.
+
+### Settle The License Before Uploading
+
+Not blocking, but worth resolving deliberately rather than by default. **None of
+this is legal advice.** The chain:
+
+| Layer                              | Source                      | License                |
+| ---------------------------------- | --------------------------- | ---------------------- |
+| SNIPS utterances (the text itself) | `sonos/nlu-benchmark`       | CC0-1.0 (public domain) |
+| MixSNIPS_clean construction        | `LooperXX/AGIF`             | GPL-2.0, repo-wide     |
+| The mirror we load                 | `nahyeon00/mixsnips_clean`  | none declared          |
+| Our segmentation and XML           | this repo + Kimi K3         | ours                   |
+
+Both ends are clear. The base data is CC0, which permits redistribution and
+derivatives and only *requests* a citation of the Snips paper. Fireworks' terms
+§3.2 and §7 give the customer ownership of Output, with no restriction on
+redistributing it, so the model-derived annotations are ours to publish.
+
+The middle is not. AGIF is GPL-2.0 across the whole repo, and its README asks
+only that you cite the paper for "any source codes or the datasets", setting no
+data-specific license. Two things soften that: GPL is a software licence aimed
+at the model code, and AGIF cannot relicense CC0 public-domain text — at most it
+could claim a thin compilation right in the arrangement, which a random
+mechanical concatenation is unlikely to attract.
+
+Options, in the order worth considering:
+
+1.  Upload with a CC-BY-4.0 or CC0 licence and document the chain above openly,
+    citing both the Snips and AGIF papers. Transparent provenance matters more
+    here than the licence tag.
+2.  Publish only the annotations — segmentation boundaries keyed to an utterance
+    hash, no source text — which sidesteps redistribution entirely.
+3.  Regenerate MixSNIPS from CC0 SNIPS directly, removing AGIF from the chain at
+    the cost of comparability with the published benchmark.
+
+References: [nlu-benchmark](https://github.com/snipsco/nlu-benchmark),
+[AGIF](https://github.com/LooperXX/AGIF),
+[AGIF paper](https://arxiv.org/abs/2004.10087),
+[Snips paper](https://arxiv.org/abs/1805.10190),
+[Fireworks terms](https://fireworks.ai/terms-of-service).
+
 ## Development
 
 Format and check:
