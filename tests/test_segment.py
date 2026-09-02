@@ -7,7 +7,7 @@ from multi_nlu_data.convert import report_failures
 from multi_nlu_data.data import Dataset as DS
 from multi_nlu_data.data import Example
 from multi_nlu_data.label import build, trim
-from multi_nlu_data.publish import CARD, PROVENANCE, TITLES, read_splits
+from multi_nlu_data.publish import read_splits, render_card
 from multi_nlu_data.segment import (
     Segment,
     Segmentation,
@@ -149,10 +149,7 @@ def test_read_splits_rejects_an_empty_directory(tmp_path):
 
 def render(dataset):
     """Card text with wrapping collapsed, so assertions ignore line breaks."""
-    text = CARD.format(
-        name="x", title=TITLES[dataset], provenance=PROVENANCE[dataset], rev="abc"
-    )
-    return " ".join(text.split())
+    return " ".join(render_card(dataset, "x", "abc").split())
 
 
 def test_card_renders_per_dataset_provenance():
@@ -168,3 +165,10 @@ def test_card_renders_per_dataset_provenance():
 def test_card_always_states_the_segmentation_is_not_gold():
     for dataset in DS:
         assert "reconstructed, not gold" in render(dataset)
+
+
+def test_card_fills_every_placeholder():
+    """A typo in a body.md placeholder only shows up at push time otherwise."""
+    card = render_card(DS.MIXSNIPS, "mixsnips-xml", "abc123")
+    assert "{" not in card and "}" not in card
+    assert "mixsnips-xml" in card and "abc123" in card

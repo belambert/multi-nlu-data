@@ -263,8 +263,17 @@ after regenerating and the dataset moves forward in place, with history kept.
 
 Each commit is messaged `Update from multi-nlu-data@<rev>`, naming the git
 revision of this repo that produced it (suffixed `-dirty` when the tree has
-uncommitted changes), so a dataset revision can be traced back to the code. The
-card is rewritten on every push, so its prose stays in step with the data.
+uncommitted changes), so a dataset revision can be traced back to the code.
+
+The card is rewritten on every push, so its prose stays in step with the data —
+and so hand-edits made in the Hub's web UI are overwritten. The text lives in
+`src/multi_nlu_data/cards/`: `body.md` is the shared template, and
+`mixsnips.md` / `mixatis.md` hold the provenance paragraph for each corpus. Card
+metadata (`license`, `tags`, `task_categories`) is set in `publish.py`, since
+the Hub validates those against a fixed list. To iterate on wording without
+re-uploading the data:
+
+    uv run multi-nlu-publish --card-only
 
 Datasets are created **private** by default; pass `--no-private` to publish
 openly, and see the licence TODO below before doing so for MixATIS.
