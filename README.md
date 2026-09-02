@@ -91,6 +91,68 @@ Show intent counts and how many intents appear per utterance:
 
     uv run multi-nlu stats --split train
 
+## Converting To XML
+
+`multi-nlu-convert` recovers per-intent segmentation and emits nested XML:
+
+    <PlayMusic>play <artist>isham jones</artist></PlayMusic>
+    and
+    <RateBook><object_name>swine not</object_name> deserves
+      <rating_value>four</rating_value> <rating_unit>points</rating_unit></RateBook>
+
+Connective tokens sit between segments, outside both tags, so the segments stay
+a clean partition of the content.
+
+### How Segmentation Is Recovered
+
+The dataset has no intent spans (see above), so they are approximated from two
+free signals:
+
+1.  **Slot-to-intent anchors.** Single-intent rows label their own slots
+    unambiguously, giving a slot type to intent map for free. Of 39 slot types,
+    28 are globally unambiguous — and the other 11 usually resolve *within a
+    row*, since only that row's intents are candidates (`artist` is
+    PlayMusic-or-AddToPlaylist in general, but forced in a
+    `{PlayMusic, GetWeather}` row).
+2.  **Connectives.** The seam is marked by the phrase used to join the source
+    utterances, ranked strongest-first: `and also`/`and then` beat `also`/`then`,
+    which beat `,`, which beats a bare `and`. The ranking matters — bare `and`
+    also occurs inside entity names, and using it indiscriminately drops
+    resolution from 88% to 43%.
+
+Anchors give the intent order and bracket where each seam must lie; the
+strongest connective in that gap places it. This settles **88.0% of train**
+(8,277 single-intent rows plus 26,713 multi-intent rows), leaving 4,786 for the
+LLM. Reassuringly, anchors never interleave in any of the 31,499 multi-intent
+train rows, which is what you would expect if the concatenation structure holds.
+
+### LLM Fallback
+
+Unresolved rows go to an open model on Fireworks. The model is asked only for
+what the heuristics could not pin down — the intent order and the seam
+positions, as token indices rather than free text — so every answer is validated
+against the BIO spans (boundaries in range, strictly increasing, never inside a
+slot span, intents a permutation of the row's set) before being accepted.
+Rejected answers are reported, never silently patched.
+
+    export FIREWORKS_API_KEY=...
+    uv run multi-nlu-convert models --filter llama     # pick a real model id
+    uv run multi-nlu-convert xml --split test --llm --model <id> --out test.jsonl
+
+Answers are cached to `llm-cache.jsonl` and reused, so reruns cost nothing.
+`--limit` caps the number of calls for a trial run.
+
+Heuristic coverage on a split, without spending anything:
+
+    uv run multi-nlu-convert coverage --split train
+
+### Caveat
+
+The segmentation is **approximate and unvalidated**. MixSNIPS ships no gold
+boundaries, so the 88% figure is the rate at which the heuristics reach a
+confident answer, not a measured accuracy. Spot-check a sample before treating
+the output as training data.
+
 ## Development
 
 Format and check:

@@ -11,3 +11,4 @@ wheels/
 
 # uv
 uv.lock
+llm-cache.jsonl

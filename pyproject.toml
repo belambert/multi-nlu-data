@@ -9,11 +9,13 @@ authors = [
 requires-python = ">=3.13"
 dependencies = [
     "datasets>=5.0.1",
+    "fireworks-ai>=1.2.11",
     "typer>=0.27.2",
 ]
 
 [project.scripts]
 multi-nlu = "multi_nlu.cli:app"
+multi-nlu-convert = "multi_nlu.convert:app"
 
 [build-system]
 requires = ["uv_build>=0.9.3,<0.10.0"]
