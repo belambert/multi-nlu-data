@@ -18,7 +18,7 @@ from multi_nlu.data import Example
 from multi_nlu.segment import TIERS, Segment, Segmentation, spans
 
 # list alternatives with `multi-nlu-convert models`
-DEFAULT_MODEL = "accounts/fireworks/models/glm-5p3"
+DEFAULT_MODEL = "accounts/fireworks/models/kimi-k3"
 
 SYSTEM = """\
 You segment multi-intent utterances. The utterance is a concatenation of \
@@ -75,10 +75,10 @@ def ask(client: Fireworks, ex: Example, model: str) -> dict | None:
         ],
         response_format=SCHEMA,
         temperature=0,
-        # GLM 5.3 cannot disable thinking; at "low" it spends ~34 tokens, but a
-        # hard cap would truncate the answer rather than the reasoning
-        reasoning_effort="low",
-        max_tokens=1000,
+        # not every model honours this; on one that does not, thinking eats the
+        # completion budget and the answer comes back empty
+        reasoning_effort="none",
+        max_tokens=200,
         prompt_cache_key="mixsnips-segment",
     )
     content = reply.choices[0].message.content

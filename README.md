@@ -143,23 +143,39 @@ Answers are cached to `llm-cache.jsonl` and reused, so reruns cost nothing.
 must be exported somewhere zsh reads — `~/.zshenv` or `~/.zprofile`, **not**
 `~/.profile`, which zsh ignores.
 
-The default model is GLM 5.3 (`accounts/fireworks/models/glm-5p3`), chosen by
-benchmarking candidates against rows the heuristics had already settled. It
-agreed on 39 of 40, and the one disagreement was the model's error, not the
-heuristics'. On the full test split it labelled 252 of 252 unresolved rows with
-no validation failures, in 36 seconds.
+### Choosing A Model
 
-GLM 5.3 cannot turn thinking off — `reasoning_effort="none"` and
-`thinking={"type": "disabled"}` are both rejected — so `label.py` sets
-`reasoning_effort="low"`, which costs about 34 completion tokens per answer.
-Leave `max_tokens` generous: a tight cap truncates the reasoning and returns
-empty content rather than a short answer. Counter-intuitively the `-flash`
-variant was worse on both counts (374 completion tokens, 38/40 valid).
+The default is Kimi K3 (`accounts/fireworks/models/kimi-k3`) with thinking
+disabled, picked by benchmarking candidates against 40 rows the heuristics had
+already settled — which gives an accuracy proxy for free, since no gold
+segmentation exists. On the full test split it labelled 252 of 252 unresolved
+rows with no validation failures, in 70 seconds.
 
-    uv run multi-nlu-convert models --filter qwen    # list other candidates
+| Model               | Thinking | Agrees | Completion tok |
+| ------------------- | -------- | ------ | -------------- |
+| `kimi-k3`           | off      | 40/40  | 23             |
+| `glm-5p3`           | forced   | 40/40  | 35             |
+| `glm-5p2`           | off      | 39/40  | 21             |
+| `kimi-k2p6`         | off      | 39/40  | 22             |
+| `qwen3p8-max`       | off      | 39/40  | 22             |
+| `qwen3p7-plus`      | off      | 38/40  | 26             |
 
-Not every model the catalogue reports as `READY` is deployed serverless; several
-return 404 and would need a dedicated deployment.
+At n=40 a one-row difference is noise, so these are equivalent on accuracy;
+thinking behaviour is the real differentiator. **Whether thinking can be
+disabled is per-model, not per-family** — `glm-5p2` accepts
+`reasoning_effort="none"`, `glm-5p3` rejects it and every other way of turning
+thinking off. On a model that ignores the flag, reasoning silently consumes the
+completion budget and the answer comes back as empty content rather than an
+error, so `max_tokens` must be raised to compensate. Verify with a single call
+before switching `DEFAULT_MODEL`.
+
+    uv run multi-nlu-convert models --filter kimi    # list other candidates
+
+Not every model the catalogue reports as `READY` is deployed serverless; roughly
+half return 404 and would need a dedicated deployment.
+
+As a cross-check, GLM 5.3 and Kimi K3 produce identical XML on 96% of the 252
+rows they both labelled.
 
 Heuristic coverage on a split, without spending anything:
 
