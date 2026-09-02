@@ -249,6 +249,26 @@ Heuristic coverage on a split, without spending anything:
 
     uv run multi-nlu-convert coverage --split train
 
+## Publishing To HuggingFace
+
+`multi-nlu-publish` uploads the converted splits as a dataset:
+
+    uv run multi-nlu-publish --dry-run          # report what would be pushed
+    uv run multi-nlu-publish
+
+It pushes to a **stable repo id** (`<user>/<dataset>-xml` unless `--repo` says
+otherwise). Hub datasets are git repos, so pushing the same id again adds a
+revision to the existing dataset rather than creating a new one — re-run it
+after regenerating and the dataset moves forward in place, with history kept.
+
+Each commit is messaged `Update from multi-nlu-data@<rev>`, naming the git
+revision of this repo that produced it (suffixed `-dirty` when the tree has
+uncommitted changes), so a dataset revision can be traced back to the code. The
+card is rewritten on every push, so its prose stays in step with the data.
+
+Datasets are created **private** by default; pass `--no-private` to publish
+openly, and see the licence TODO below before doing so for MixATIS.
+
 ### Caveat
 
 The segmentation is **approximate and unvalidated**. Neither dataset ships gold
@@ -259,17 +279,11 @@ rests on the LLM rather than on the better-corroborated heuristics.
 
 ## TODO
 
-### Publish The Converted Dataset To HuggingFace
+### Settle The License Before Publishing Openly
 
-Upload the segmented, XML-tagged splits as a dataset in their own right. The
-card should carry the provenance chain below, the meaning of the `source` field
-(`single` / `heuristic` / `llm`), and the caveat above — the segmentation is
-approximate, so anyone using it should know which rows came from where.
-
-### Settle The License Before Uploading
-
-Not blocking, but worth resolving deliberately rather than by default. **None of
-this is legal advice.** The chain:
+Publishing defaults to private, so this only blocks going public. The card
+declares `cc-by-4.0` unless `--license` says otherwise; decide deliberately
+rather than accepting that default. **None of this is legal advice.** The chain:
 
 | Layer                              | Source                      | License                 |
 | ---------------------------------- | --------------------------- | ----------------------- |

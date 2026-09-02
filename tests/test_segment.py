@@ -1,8 +1,13 @@
 import json
 
+import pytest
+import typer
+
 from multi_nlu_data.convert import report_failures
+from multi_nlu_data.data import Dataset as DS
 from multi_nlu_data.data import Example
 from multi_nlu_data.label import build, trim
+from multi_nlu_data.publish import CARD, PROVENANCE, TITLES, read_splits
 from multi_nlu_data.segment import (
     Segment,
     Segmentation,
@@ -126,3 +131,40 @@ def test_report_failures_writes_a_sidecar_beside_the_output(tmp_path):
 def test_report_failures_without_an_output_path_only_warns(tmp_path):
     report_failures([PLAY_RATE], None)
     assert list(tmp_path.iterdir()) == []
+
+
+def test_read_splits_loads_only_the_files_present(tmp_path):
+    (tmp_path / "train.jsonl").write_text('{"text": "a", "xml": "<X>a</X>"}\n')
+    (tmp_path / "test.jsonl").write_text('{"text": "b", "xml": "<Y>b</Y>"}\n')
+
+    splits = read_splits(tmp_path)
+    assert list(splits) == ["train", "test"]
+    assert splits["train"][0]["text"] == "a"
+
+
+def test_read_splits_rejects_an_empty_directory(tmp_path):
+    with pytest.raises(typer.BadParameter):
+        read_splits(tmp_path)
+
+
+def render(dataset):
+    """Card text with wrapping collapsed, so assertions ignore line breaks."""
+    text = CARD.format(
+        name="x", title=TITLES[dataset], provenance=PROVENANCE[dataset], rev="abc"
+    )
+    return " ".join(text.split())
+
+
+def test_card_renders_per_dataset_provenance():
+    snips, atis = render(DS.MIXSNIPS), render(DS.MIXATIS)
+
+    assert "CC0-1.0" in snips
+    assert "Linguistic Data Consortium" not in snips
+    # the ATIS licence warning must not be lost to a line break
+    assert "Linguistic Data Consortium" in atis
+    assert "CC0-1.0" not in atis
+
+
+def test_card_always_states_the_segmentation_is_not_gold():
+    for dataset in DS:
+        assert "reconstructed, not gold" in render(dataset)

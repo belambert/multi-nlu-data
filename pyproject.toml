@@ -10,12 +10,14 @@ requires-python = ">=3.13"
 dependencies = [
     "datasets>=5.0.1",
     "fireworks-ai>=1.2.11",
+    "huggingface-hub>=1.29.0",
     "typer>=0.27.2",
 ]
 
 [project.scripts]
 multi-nlu = "multi_nlu_data.cli:app"
 multi-nlu-convert = "multi_nlu_data.convert:app"
+multi-nlu-publish = "multi_nlu_data.publish:app"
 
 [build-system]
 requires = ["uv_build>=0.9.3,<0.10.0"]
