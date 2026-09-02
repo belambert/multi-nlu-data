@@ -111,23 +111,27 @@ def push(
     ),
     license: str = typer.Option("cc-by-4.0", help="License tag for the dataset card."),
     message: str = typer.Option(None, help="Commit message for this revision."),
+    card_only: bool = typer.Option(
+        False, help="Update the card, leaving the data alone."
+    ),
     dry_run: bool = typer.Option(False, help="Report what would be pushed, then stop."),
 ) -> None:
     """Push the converted splits, adding a revision to an existing dataset."""
-    splits = read_splits(data)
+    splits = {} if card_only else read_splits(data)
     repo = repo or f"{whoami()['name']}/{dataset}-xml"
     rev = source_revision()
     message = message or f"Update from multi-nlu-data@{rev}"
 
     for name, rows in splits.items():
         typer.echo(f"  {name:<12} {len(rows):>6} rows", err=True)
-    typer.echo(f"-> {repo}  ({message})", err=True)
+    typer.echo(f"-> {repo}  ({message}){' [card only]' if card_only else ''}", err=True)
     if dry_run:
         return
 
-    DatasetDict(
-        {name: HFDataset.from_list(rows) for name, rows in splits.items()}
-    ).push_to_hub(repo, private=private, commit_message=message)
+    if splits:
+        DatasetDict(
+            {name: HFDataset.from_list(rows) for name, rows in splits.items()}
+        ).push_to_hub(repo, private=private, commit_message=message)
     push_card(repo, dataset, license, rev, message)
 
     typer.secho(
@@ -160,7 +164,8 @@ def push_card(
     )
     card.data.license = license
     card.data.language = ["en"]
-    card.data.task_categories = ["token-classification", "text2text-generation"]
+    # both must come from the Hub's official list, or the card fails validation
+    card.data.task_categories = ["token-classification", "text-generation"]
     card.data.tags = ["multi-intent", "nlu", "slot-filling", "intent-detection"]
     card.push_to_hub(repo, commit_message=f"{message} (card)")
 
