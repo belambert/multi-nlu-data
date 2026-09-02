@@ -1,7 +1,7 @@
 [project]
-name = "multi-nlu"
+name = "multi-nlu-data"
 version = "0.1.0"
-description = "Multi-intent NLU with open language models"
+description = "Multi-intent NLU datasets: inspection and conversion to per-intent XML"
 readme = "README.md"
 authors = [
     { name = "Ben Lambert", email = "blambert@gmail.com" }
@@ -14,8 +14,8 @@ dependencies = [
 ]
 
 [project.scripts]
-multi-nlu = "multi_nlu.cli:app"
-multi-nlu-convert = "multi_nlu.convert:app"
+multi-nlu = "multi_nlu_data.cli:app"
+multi-nlu-convert = "multi_nlu_data.convert:app"
 
 [build-system]
 requires = ["uv_build>=0.9.3,<0.10.0"]

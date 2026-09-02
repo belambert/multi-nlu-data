@@ -1,16 +1,17 @@
-"""Approximate per-intent segmentation of MixSNIPS utterances.
+"""Approximate per-intent segmentation of Mix* utterances.
 
-MixSNIPS was built by concatenating single-intent utterances but does not
-preserve the boundaries, so intent spans have to be recovered. Two free signals
-carry most of the work: single-intent rows label their own slots unambiguously,
-and the concatenation connectives ("and also", "and then") mark the seams.
-Rows the heuristics cannot settle are left for an LLM to decide.
+MixSNIPS and MixATIS were built by concatenating single-intent utterances but do
+not preserve the boundaries, so intent spans have to be recovered. Two free
+signals carry most of the work: single-intent rows label their own slots
+unambiguously, and the concatenation connectives ("and also", "and then") mark
+the seams. Neither signal is dataset-specific — the slot map is learned from
+whichever corpus is loaded. Rows the heuristics cannot settle go to an LLM.
 """
 
 from dataclasses import dataclass
 from xml.sax.saxutils import escape
 
-from multi_nlu.data import Example, load
+from multi_nlu_data.data import Example, load
 
 # boundary markers, strongest first; the strongest tier that matches a gap wins
 TIERS = [
@@ -37,9 +38,11 @@ class Segmentation:
     source: str  # "single", "heuristic", or "llm"
 
 
-def segment_split(split: str = "train") -> tuple[list[Segmentation], list[Example]]:
+def segment_split(
+    split: str = "train", dataset: str = "mixsnips"
+) -> tuple[list[Segmentation], list[Example]]:
     """Segment a split heuristically, returning what resolved and what needs an LLM."""
-    examples = load(split)
+    examples = load(split, dataset)
     slot_intents = learn_slot_intents(examples)
 
     done, todo = [], []

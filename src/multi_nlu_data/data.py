@@ -1,10 +1,17 @@
-"""Loading of the MixSNIPS multi-intent NLU dataset."""
+"""Loading of the Mix* multi-intent NLU datasets.
+
+MixSNIPS and MixATIS share a schema and a construction method, so both load
+through the same path.
+"""
 
 from dataclasses import dataclass
 
 from datasets import load_dataset
 
-DATASET = "nahyeon00/mixsnips_clean"
+DATASETS = {
+    "mixsnips": "nahyeon00/mixsnips_clean",
+    "mixatis": "gamy0315/mixatis_clean",
+}
 SPLITS = ("train", "validation", "test")
 
 
@@ -37,7 +44,7 @@ class Example:
         return slots
 
 
-def load(split: str = "train") -> list[Example]:
-    """Load a MixSNIPS split; intents are stored as a single '#'-joined string."""
-    rows = load_dataset(DATASET, split=split)
+def load(split: str = "train", dataset: str = "mixsnips") -> list[Example]:
+    """Load a split; intents are stored as a single '#'-joined string."""
+    rows = load_dataset(DATASETS[dataset], split=split)
     return [Example(r["token"], r["tag"], r["intent"][0].split("#")) for r in rows]

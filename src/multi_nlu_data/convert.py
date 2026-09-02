@@ -1,4 +1,4 @@
-"""CLI for converting MixSNIPS into segmented, XML-tagged training data."""
+"""CLI for converting the Mix* datasets into segmented, XML-tagged data."""
 
 import collections
 import json
@@ -8,15 +8,19 @@ from pathlib import Path
 
 import typer
 
-from multi_nlu.data import SPLITS
-from multi_nlu.segment import segment_split, to_xml
+from multi_nlu_data.data import DATASETS, SPLITS
+from multi_nlu_data.segment import segment_split, to_xml
 
-app = typer.Typer(help="Convert MixSNIPS into per-intent XML.")
+app = typer.Typer(help="Convert the Mix* datasets into per-intent XML.")
+
+DATASET = typer.Option("mixsnips", help=f"One of {', '.join(DATASETS)}.")
+SPLIT = typer.Option("train", help=f"One of {', '.join(SPLITS)}.")
 
 
 @app.command()
 def xml(
-    split: str = typer.Option("train", help=f"One of {', '.join(SPLITS)}."),
+    split: str = SPLIT,
+    dataset: str = DATASET,
     out: Path = typer.Option(None, help="Write JSONL here instead of stdout."),
     llm: bool = typer.Option(False, help="Send unresolved rows to Fireworks."),
     model: str = typer.Option(
@@ -29,14 +33,15 @@ def xml(
     workers: int = typer.Option(8, help="Concurrent LLM requests."),
 ) -> None:
     """Segment a split and emit nested intent/slot XML."""
-    done, todo = segment_split(split)
+    done, todo = segment_split(split, dataset)
     typer.echo(
-        f"{split}: {len(done)} resolved by heuristics, {len(todo)} unresolved", err=True
+        f"{dataset}/{split}: {len(done)} resolved by heuristics, {len(todo)} unresolved",
+        err=True,
     )
 
     failed = todo
     if llm and todo:
-        from multi_nlu.label import DEFAULT_MODEL, label_all
+        from multi_nlu_data.label import DEFAULT_MODEL, label_all
 
         batch = todo[:limit] if limit else todo
         # on stderr, so a piped JSONL stream stays clean
@@ -89,11 +94,9 @@ def report_failures(failed: list, out: Path | None) -> None:
 
 
 @app.command()
-def coverage(
-    split: str = typer.Option("train", help=f"One of {', '.join(SPLITS)}.")
-) -> None:
+def coverage(split: str = SPLIT, dataset: str = DATASET) -> None:
     """Report how much of a split the heuristics settle without an LLM."""
-    done, todo = segment_split(split)
+    done, todo = segment_split(split, dataset)
     by_source = collections.Counter(s.source for s in done)
     total = len(done) + len(todo)
 

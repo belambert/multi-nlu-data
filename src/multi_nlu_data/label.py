@@ -15,8 +15,8 @@ from pathlib import Path
 
 from fireworks import Fireworks
 
-from multi_nlu.data import Example
-from multi_nlu.segment import TIERS, Segment, Segmentation, spans
+from multi_nlu_data.data import Example
+from multi_nlu_data.segment import TIERS, Segment, Segmentation, spans
 
 # list alternatives with `multi-nlu-convert models`
 DEFAULT_MODEL = "accounts/fireworks/models/kimi-k3"

@@ -1,37 +1,39 @@
-"""CLI for inspecting the MixSNIPS dataset."""
+"""CLI for inspecting the Mix* multi-intent NLU datasets."""
 
 import random
 
 import typer
 
-from multi_nlu.data import SPLITS, Example, load
+from multi_nlu_data.data import DATASETS, SPLITS, Example, load
 
-app = typer.Typer(help="Multi-intent NLU with open language models.")
+app = typer.Typer(help="Inspect the Mix* multi-intent NLU datasets.")
+
+DATASET = typer.Option("mixsnips", help=f"One of {', '.join(DATASETS)}.")
+SPLIT = typer.Option("train", help=f"One of {', '.join(SPLITS)}.")
 
 
 @app.command()
 def show(
-    split: str = typer.Option("train", help=f"One of {', '.join(SPLITS)}."),
+    split: str = SPLIT,
+    dataset: str = DATASET,
     n: int = typer.Option(5, help="Number of examples to print."),
     seed: int | None = typer.Option(None, help="Sample randomly with this seed."),
 ) -> None:
-    """Print examples from a MixSNIPS split."""
-    examples = load(split)
+    """Print examples from a split."""
+    examples = load(split, dataset)
     chosen = (
         random.Random(seed).sample(examples, n) if seed is not None else examples[:n]
     )
 
-    typer.echo(f"{split}: {len(examples)} examples\n")
+    typer.echo(f"{dataset}/{split}: {len(examples)} examples\n")
     for i, ex in enumerate(chosen):
         print_example(i, ex)
 
 
 @app.command()
-def stats(
-    split: str = typer.Option("train", help=f"One of {', '.join(SPLITS)}.")
-) -> None:
+def stats(split: str = SPLIT, dataset: str = DATASET) -> None:
     """Print intent counts and utterance-length distribution for a split."""
-    examples = load(split)
+    examples = load(split, dataset)
     counts: dict[str, int] = {}
     per_utt: dict[int, int] = {}
     for ex in examples:
@@ -39,7 +41,7 @@ def stats(
         for intent in ex.intents:
             counts[intent] = counts.get(intent, 0) + 1
 
-    typer.echo(f"{split}: {len(examples)} examples\n")
+    typer.echo(f"{dataset}/{split}: {len(examples)} examples\n")
     typer.echo("intents per utterance:")
     for k in sorted(per_utt):
         typer.echo(f"  {k}: {per_utt[k]}")

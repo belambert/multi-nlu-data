@@ -1,24 +1,29 @@
-# multi-nlu
+# multi-nlu-data
 
-Multi-intent natural language understanding with open language models, using the
-[MixSNIPS](https://huggingface.co/datasets/nahyeon00/mixsnips_clean) dataset.
+Data tooling for multi-intent NLU: inspect the Mix\* datasets and convert them
+into per-intent XML. This repo handles **only** the data — modelling lives
+elsewhere and consumes what this produces.
 
-MixSNIPS composes SNIPS utterances into single utterances carrying one to three
+Two datasets are supported, selected with `--dataset`:
+
+| `--dataset` | Source                                                                       | Train  | Validation | Test  | Intents |
+| ----------- | ---------------------------------------------------------------------------- | ------ | ---------- | ----- | ------- |
+| `mixsnips`  | [nahyeon00/mixsnips_clean](https://huggingface.co/datasets/nahyeon00/mixsnips_clean) | 39,776 | 2,198      | 2,199 | 7       |
+| `mixatis`   | [gamy0315/mixatis_clean](https://huggingface.co/datasets/gamy0315/mixatis_clean)     | 13,162 | 759        | 828   | 18      |
+
+Both compose single-intent utterances into one utterance carrying one to three
 intents (e.g. "play anything by george formby jr, give zero points out of 6 to
 the devil in a forest and also can i get the showtimes for the jade faced
-assassin cinema"). Each example has BIO slot tags alongside its intent set.
-
-| Split      | Examples |
-| ---------- | -------- |
-| train      | 39,776   |
-| validation | 2,198    |
-| test       | 2,199    |
+assassin cinema"), with BIO slot tags alongside the intent set. They share a
+schema and a construction method, so everything here works on either;
+`mixsnips` is the default.
 
 ## Native Dataset Format
 
 Useful to know before converting the data into a modeling format. Each row has
 exactly three fields, all lists of strings — there are no `ClassLabel` features
-or label-id mappings, so nothing needs a vocabulary file to interpret.
+or label-id mappings, so nothing needs a vocabulary file to interpret. The
+figures below are for MixSNIPS; MixATIS differs in scale but not in shape.
 
 ```python
 {
@@ -62,10 +67,10 @@ requires inferring it from the slot type or token position.
 
 ### Intents
 
-Seven intents, inherited from SNIPS: `AddToPlaylist`, `BookRestaurant`,
+MixSNIPS has seven, inherited from SNIPS: `AddToPlaylist`, `BookRestaurant`,
 `GetWeather`, `PlayMusic`, `RateBook`, `SearchCreativeWork`,
 `SearchScreeningEvent`. One to three per utterance (450 / 1,249 / 500 of the
-2,199 test rows).
+2,199 test rows). MixATIS has 18 `atis_*` intents over the same 1–3 range.
 
 The `#`-joined list is alphabetically sorted in all 39,776 train rows, so its
 order says nothing about the order the intents appear in the utterance. Treat
@@ -91,6 +96,10 @@ Show intent counts and how many intents appear per utterance:
 
     uv run multi-nlu stats --split train
 
+Every command takes `--dataset`, defaulting to `mixsnips`:
+
+    uv run multi-nlu show --dataset mixatis --split test
+
 ## Converting To XML
 
 `multi-nlu-convert` recovers per-intent segmentation and emits nested XML:
@@ -105,13 +114,14 @@ a clean partition of the content.
 
 ### How Segmentation Is Recovered
 
-The dataset has no intent spans (see above), so they are approximated from two
-free signals:
+The datasets have no intent spans (see above), so they are approximated from two
+free signals. Neither is hard-coded per dataset — the slot map is learned from
+whichever corpus is loaded.
 
 1.  **Slot-to-intent anchors.** Single-intent rows label their own slots
-    unambiguously, giving a slot type to intent map for free. Of 39 slot types,
-    28 are globally unambiguous — and the other 11 usually resolve *within a
-    row*, since only that row's intents are candidates (`artist` is
+    unambiguously, giving a slot type to intent map for free. In MixSNIPS, 28 of
+    39 slot types are globally unambiguous — and the other 11 usually resolve
+    *within a row*, since only that row's intents are candidates (`artist` is
     PlayMusic-or-AddToPlaylist in general, but forced in a
     `{PlayMusic, GetWeather}` row).
 2.  **Connectives.** The seam is marked by the phrase used to join the source
@@ -121,10 +131,23 @@ free signals:
     resolution from 88% to 43%.
 
 Anchors give the intent order and bracket where each seam must lie; the
-strongest connective in that gap places it. This settles **88.0% of train**
-(8,277 single-intent rows plus 26,713 multi-intent rows), leaving 4,786 for the
-LLM. Reassuringly, anchors never interleave in any of the 31,499 multi-intent
-train rows, which is what you would expect if the concatenation structure holds.
+strongest connective in that gap places it. Reassuringly, anchors never
+interleave in any of the 31,499 multi-intent MixSNIPS train rows, which is what
+you would expect if the concatenation structure holds.
+
+How far that gets varies sharply by dataset:
+
+| Train split | Single | Heuristic | Unresolved | Resolved free |
+| ----------- | ------ | --------- | ---------- | ------------- |
+| `mixsnips`  | 8,277  | 26,713    | 4,786      | **88.0%**     |
+| `mixatis`   | 1,118  | 4,763     | 7,281      | **44.7%**     |
+
+MixATIS is much harder because its slot types are shared across intents —
+`fromloc.city_name` and `airline_name` appear under most of the 18 `atis_*`
+intents, so far fewer spans pin down a single one. Expect to spend roughly three
+times as much on the LLM fallback per row converted. Check before running:
+
+    uv run multi-nlu-convert coverage --dataset mixatis --split train
 
 ### LLM Fallback
 
@@ -148,15 +171,20 @@ reused. `--limit` caps the number of calls for a costed trial run.
 
 ### Running The Full Conversion
 
-One split per invocation:
+One split per invocation, and one dataset at a time:
 
-    mkdir -p data
-    uv run multi-nlu-convert xml --split train      --llm --workers 32 --out data/train.jsonl
-    uv run multi-nlu-convert xml --split validation --llm --workers 32 --out data/validation.jsonl
-    uv run multi-nlu-convert xml --split test       --llm --workers 32 --out data/test.jsonl
+    mkdir -p data/mixsnips
+    uv run multi-nlu-convert xml --split train      --llm --workers 32 --out data/mixsnips/train.jsonl
+    uv run multi-nlu-convert xml --split validation --llm --workers 32 --out data/mixsnips/validation.jsonl
+    uv run multi-nlu-convert xml --split test       --llm --workers 32 --out data/mixsnips/test.jsonl
 
-Train takes about 7 minutes at `--workers 32` (roughly 22 at the default 8);
-the other two splits take under a minute each.
+MixSNIPS train takes about 7 minutes at `--workers 32` (roughly 22 at the
+default 8); the other two splits take under a minute each. MixATIS is a smaller
+corpus but resolves far less heuristically, so its train split makes about 1.5×
+as many LLM calls despite having a third of the rows.
+
+Give each dataset its own `--cache`, since the cache is keyed by utterance text
+and the two corpora are unrelated.
 
 Each split writes one JSON object per line:
 
@@ -219,10 +247,11 @@ Heuristic coverage on a split, without spending anything:
 
 ### Caveat
 
-The segmentation is **approximate and unvalidated**. MixSNIPS ships no gold
-boundaries, so the 88% figure is the rate at which the heuristics reach a
+The segmentation is **approximate and unvalidated**. Neither dataset ships gold
+boundaries, so the coverage figures are the rate at which the heuristics reach a
 confident answer, not a measured accuracy. Spot-check a sample before treating
-the output as training data.
+the output as training data — especially for MixATIS, where over half of train
+rests on the LLM rather than on the better-corroborated heuristics.
 
 ## TODO
 
@@ -238,36 +267,50 @@ approximate, so anyone using it should know which rows came from where.
 Not blocking, but worth resolving deliberately rather than by default. **None of
 this is legal advice.** The chain:
 
-| Layer                              | Source                      | License                |
-| ---------------------------------- | --------------------------- | ---------------------- |
+| Layer                              | Source                      | License                 |
+| ---------------------------------- | --------------------------- | ----------------------- |
 | SNIPS utterances (the text itself) | `sonos/nlu-benchmark`       | CC0-1.0 (public domain) |
-| MixSNIPS_clean construction        | `LooperXX/AGIF`             | GPL-2.0, repo-wide     |
-| The mirror we load                 | `nahyeon00/mixsnips_clean`  | none declared          |
-| Our segmentation and XML           | this repo + Kimi K3         | ours                   |
+| ATIS utterances (the text itself)  | LDC93S4B / LDC94S19         | LDC, licence required   |
+| Mix*_clean construction            | `LooperXX/AGIF`             | GPL-2.0, repo-wide      |
+| The mirrors we load                | `nahyeon00`, `gamy0315`     | none declared           |
+| Our segmentation and XML           | this repo + Kimi K3         | ours                    |
 
-Both ends are clear. The base data is CC0, which permits redistribution and
-derivatives and only *requests* a citation of the Snips paper. Fireworks' terms
-§3.2 and §7 give the customer ownership of Output, with no restriction on
-redistributing it, so the model-derived annotations are ours to publish.
+**The two datasets are not in the same position, and MixSNIPS is the far safer
+one to publish.** Treat them separately.
 
-The middle is not. AGIF is GPL-2.0 across the whole repo, and its README asks
-only that you cite the paper for "any source codes or the datasets", setting no
-data-specific license. Two things soften that: GPL is a software licence aimed
-at the model code, and AGIF cannot relicense CC0 public-domain text — at most it
-could claim a thin compilation right in the arrangement, which a random
-mechanical concatenation is unlikely to attract.
+For MixSNIPS both ends are clear. The base data is CC0, which permits
+redistribution and derivatives and only *requests* a citation of the Snips
+paper. Fireworks' terms §3.2 and §7 give the customer ownership of Output, with
+no restriction on redistributing it, so the model-derived annotations are ours.
+
+For MixATIS the base data is **not** public domain. ATIS is distributed by the
+Linguistic Data Consortium under a licence agreement, and LDC corpora generally
+prohibit redistribution — that the utterances circulate widely in SLU research
+repos does not change their terms. Confirm the position before uploading
+anything containing ATIS text; the annotations-only option below matters much
+more here.
+
+The middle layer is unclear for both. AGIF is GPL-2.0 across the whole repo, and
+its README asks only that you cite the paper for "any source codes or the
+datasets", setting no data-specific license. Two things soften that: GPL is a
+software licence aimed at the model code, and AGIF cannot relicense CC0
+public-domain text — at most it could claim a thin compilation right in the
+arrangement, which a random mechanical concatenation is unlikely to attract.
+That reasoning does not rescue MixATIS, whose underlying text was never free.
 
 Options, in the order worth considering:
 
-1.  Upload with a CC-BY-4.0 or CC0 licence and document the chain above openly,
-    citing both the Snips and AGIF papers. Transparent provenance matters more
-    here than the licence tag.
+1.  Publish MixSNIPS with a CC-BY-4.0 or CC0 licence, documenting the chain above
+    openly and citing both the Snips and AGIF papers. Transparent provenance
+    matters more here than the licence tag.
 2.  Publish only the annotations — segmentation boundaries keyed to an utterance
-    hash, no source text — which sidesteps redistribution entirely.
+    hash, no source text — which sidesteps redistribution entirely. This is the
+    default answer for MixATIS, not just a fallback.
 3.  Regenerate MixSNIPS from CC0 SNIPS directly, removing AGIF from the chain at
     the cost of comparability with the published benchmark.
 
 References: [nlu-benchmark](https://github.com/snipsco/nlu-benchmark),
+[ATIS at LDC](https://catalog.ldc.upenn.edu/LDC93S4B),
 [AGIF](https://github.com/LooperXX/AGIF),
 [AGIF paper](https://arxiv.org/abs/2004.10087),
 [Snips paper](https://arxiv.org/abs/1805.10190),

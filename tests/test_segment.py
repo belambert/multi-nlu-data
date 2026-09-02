@@ -1,9 +1,15 @@
 import json
 
-from multi_nlu.convert import report_failures
-from multi_nlu.data import Example
-from multi_nlu.label import build, trim
-from multi_nlu.segment import Segment, Segmentation, learn_slot_intents, segment, to_xml
+from multi_nlu_data.convert import report_failures
+from multi_nlu_data.data import Example
+from multi_nlu_data.label import build, trim
+from multi_nlu_data.segment import (
+    Segment,
+    Segmentation,
+    learn_slot_intents,
+    segment,
+    to_xml,
+)
 
 PLAY_RATE = Example(
     tokens="play isham jones and swine not deserves four points".split(),
