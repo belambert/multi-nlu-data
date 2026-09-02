@@ -25,6 +25,7 @@ def xml(
         "llm-cache.jsonl", help="Reuse and record LLM answers here."
     ),
     limit: int = typer.Option(0, help="Cap the number of LLM calls (0 = no cap)."),
+    workers: int = typer.Option(8, help="Concurrent LLM requests."),
 ) -> None:
     """Segment a split and emit nested intent/slot XML."""
     done, todo = segment_split(split)
@@ -37,7 +38,7 @@ def xml(
         from multi_nlu.label import DEFAULT_MODEL, label_all
 
         batch = todo[:limit] if limit else todo
-        labelled, failed = label_all(batch, model or DEFAULT_MODEL, cache)
+        labelled, failed = label_all(batch, model or DEFAULT_MODEL, cache, workers)
         done += labelled
         failed += todo[len(batch) :]
         typer.echo(
@@ -54,6 +55,30 @@ def xml(
     else:
         for line in lines:
             typer.echo(line)
+
+    if failed:
+        report_failures(failed, out)
+
+
+def report_failures(failed: list, out: Path | None) -> None:
+    """Write dropped rows beside the output so a long run cannot lose them silently."""
+    if not out:
+        typer.echo(
+            f"warning: {len(failed)} rows dropped (pass --out to record them)", err=True
+        )
+        return
+
+    path = out.with_suffix(".failed.jsonl")
+    path.write_text(
+        "\n".join(
+            json.dumps({"text": ex.text, "intents": ex.intents, "tokens": ex.tokens})
+            for ex in failed
+        )
+        + "\n"
+    )
+    typer.secho(
+        f"warning: {len(failed)} rows dropped, listed in {path}", err=True, fg="yellow"
+    )
 
 
 @app.command()

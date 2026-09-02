@@ -1,3 +1,6 @@
+import json
+
+from multi_nlu.convert import report_failures
 from multi_nlu.data import Example
 from multi_nlu.label import build, trim
 from multi_nlu.segment import Segment, Segmentation, learn_slot_intents, segment, to_xml
@@ -102,3 +105,18 @@ def test_trim_strips_a_stranded_connective_from_the_segment_end():
     )
     seg = build(ex, {"order": ["PlayMusic", "RateBook"], "boundaries": [3]})
     assert [(s.start, s.end) for s in seg.segments] == [(0, 2), (4, 6)]
+
+
+def test_report_failures_writes_a_sidecar_beside_the_output(tmp_path):
+    out = tmp_path / "train.jsonl"
+    report_failures([PLAY_RATE], out)
+
+    sidecar = tmp_path / "train.failed.jsonl"
+    row = json.loads(sidecar.read_text())
+    assert row["text"] == PLAY_RATE.text
+    assert row["intents"] == PLAY_RATE.intents
+
+
+def test_report_failures_without_an_output_path_only_warns(tmp_path):
+    report_failures([PLAY_RATE], None)
+    assert list(tmp_path.iterdir()) == []

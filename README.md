@@ -138,10 +138,46 @@ Rejected answers are reported, never silently patched.
     export FIREWORKS_API_KEY=...
     uv run multi-nlu-convert xml --split test --llm --out test.jsonl
 
-Answers are cached to `llm-cache.jsonl` and reused, so reruns cost nothing.
-`--limit` caps the number of calls for a trial run. Note that `FIREWORKS_API_KEY`
-must be exported somewhere zsh reads — `~/.zshenv` or `~/.zprofile`, **not**
-`~/.profile`, which zsh ignores.
+`FIREWORKS_API_KEY` must be exported somewhere zsh reads — `~/.zshenv` or
+`~/.zprofile`, **not** `~/.profile`, which zsh ignores.
+
+Answers are cached to `llm-cache.jsonl` and reused, so a re-run or a resume
+after a crash costs nothing. The cache is keyed by utterance text alone, so
+**delete it when changing model** or the previous model's answers are silently
+reused. `--limit` caps the number of calls for a costed trial run.
+
+### Running The Full Conversion
+
+One split per invocation:
+
+    mkdir -p data
+    uv run multi-nlu-convert xml --split train      --llm --workers 32 --out data/train.jsonl
+    uv run multi-nlu-convert xml --split validation --llm --workers 32 --out data/validation.jsonl
+    uv run multi-nlu-convert xml --split test       --llm --workers 32 --out data/test.jsonl
+
+Train takes about 7 minutes at `--workers 32` (roughly 22 at the default 8);
+the other two splits take under a minute each.
+
+Each split writes one JSON object per line:
+
+```json
+{
+  "text": "i want to eat close to bowlegs ...",
+  "xml": "<BookRestaurant>i want to eat <spatial_relation>close</spatial_relation> ...</BookRestaurant> and then <SearchCreativeWork>...</SearchCreativeWork>",
+  "source": "heuristic"
+}
+```
+
+`source` is `single`, `heuristic`, or `llm`, so rows can be filtered or weighted
+by how they were derived — the `llm` rows are the least corroborated. Without
+`--out` the JSONL goes to stdout and progress to stderr, so redirection works
+the same way.
+
+Rows whose segmentation could not be settled are **not** in that file, since
+there is nothing to emit for them. They are written to a `.failed.jsonl` sidecar
+beside the output (`data/train.failed.jsonl`) with their tokens and intents, and
+the run prints a warning naming the file. A clean full run leaves no sidecar at
+all; `wc -l` across the output and the sidecar should equal the split size.
 
 ### Choosing A Model
 
