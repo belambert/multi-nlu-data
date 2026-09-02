@@ -11,4 +11,8 @@ wheels/
 
 # uv
 uv.lock
+
+# generated
+data/
+*.failed.jsonl
 llm-cache.jsonl
