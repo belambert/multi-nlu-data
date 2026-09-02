@@ -17,8 +17,8 @@ from fireworks import Fireworks
 from multi_nlu.data import Example
 from multi_nlu.segment import TIERS, Segment, Segmentation, spans
 
-# verify against `multi-nlu models`; Fireworks' catalogue changes over time
-DEFAULT_MODEL = "accounts/fireworks/models/llama-v3p3-70b-instruct"
+# list alternatives with `multi-nlu-convert models`
+DEFAULT_MODEL = "accounts/fireworks/models/glm-5p3"
 
 SYSTEM = """\
 You segment multi-intent utterances. The utterance is a concatenation of \
@@ -75,11 +75,19 @@ def ask(client: Fireworks, ex: Example, model: str) -> dict | None:
         ],
         response_format=SCHEMA,
         temperature=0,
-        max_tokens=200,
+        # GLM 5.3 cannot disable thinking; at "low" it spends ~34 tokens, but a
+        # hard cap would truncate the answer rather than the reasoning
+        reasoning_effort="low",
+        max_tokens=1000,
         prompt_cache_key="mixsnips-segment",
     )
     content = reply.choices[0].message.content
-    return json.loads(content) if content else None
+    if not content:
+        return None
+    try:
+        return json.loads(content)
+    except json.JSONDecodeError:
+        return None
 
 
 def prompt(ex: Example) -> str:
@@ -123,15 +131,22 @@ def build(ex: Example, answer: dict) -> Segmentation | None:
 
 
 def trim(ex: Example, seg: Segment) -> Segment:
-    """Push a leading connective out of the segment, matching heuristic output."""
+    """Push connectives out of both ends so they sit between segments, as heuristics do.
+
+    The model may cut anywhere inside a multi-word connective ("and | then"),
+    which would otherwise strand half of it in the preceding segment.
+    """
     for tier in TIERS:
         for c in tier:
-            n = len(c.split())
+            words = c.split()
+            n = len(words)
             if (
-                ex.tokens[seg.start : seg.start + n] == c.split()
+                ex.tokens[seg.start : seg.start + n] == words
                 and seg.start + n < seg.end
             ):
                 return trim(ex, Segment(seg.intent, seg.start + n, seg.end))
+            if ex.tokens[seg.end - n : seg.end] == words and seg.start < seg.end - n:
+                return trim(ex, Segment(seg.intent, seg.start, seg.end - n))
     return seg
 
 

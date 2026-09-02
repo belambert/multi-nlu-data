@@ -91,3 +91,14 @@ def test_build_accepts_and_trims_the_connective():
 def test_trim_keeps_a_segment_that_is_only_a_connective():
     ex = Example(["and"], ["O"], ["PlayMusic"])
     assert trim(ex, Segment("PlayMusic", 0, 1)) == Segment("PlayMusic", 0, 1)
+
+
+def test_trim_strips_a_stranded_connective_from_the_segment_end():
+    """A cut inside "and then" must not leave "and" in the previous segment."""
+    ex = Example(
+        "play x and then rate y".split(),
+        ["O", "B-artist", "O", "O", "O", "B-object_name"],
+        ["PlayMusic", "RateBook"],
+    )
+    seg = build(ex, {"order": ["PlayMusic", "RateBook"], "boundaries": [3]})
+    assert [(s.start, s.end) for s in seg.segments] == [(0, 2), (4, 6)]

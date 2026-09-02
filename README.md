@@ -136,11 +136,30 @@ slot span, intents a permutation of the row's set) before being accepted.
 Rejected answers are reported, never silently patched.
 
     export FIREWORKS_API_KEY=...
-    uv run multi-nlu-convert models --filter llama     # pick a real model id
-    uv run multi-nlu-convert xml --split test --llm --model <id> --out test.jsonl
+    uv run multi-nlu-convert xml --split test --llm --out test.jsonl
 
 Answers are cached to `llm-cache.jsonl` and reused, so reruns cost nothing.
-`--limit` caps the number of calls for a trial run.
+`--limit` caps the number of calls for a trial run. Note that `FIREWORKS_API_KEY`
+must be exported somewhere zsh reads — `~/.zshenv` or `~/.zprofile`, **not**
+`~/.profile`, which zsh ignores.
+
+The default model is GLM 5.3 (`accounts/fireworks/models/glm-5p3`), chosen by
+benchmarking candidates against rows the heuristics had already settled. It
+agreed on 39 of 40, and the one disagreement was the model's error, not the
+heuristics'. On the full test split it labelled 252 of 252 unresolved rows with
+no validation failures, in 36 seconds.
+
+GLM 5.3 cannot turn thinking off — `reasoning_effort="none"` and
+`thinking={"type": "disabled"}` are both rejected — so `label.py` sets
+`reasoning_effort="low"`, which costs about 34 completion tokens per answer.
+Leave `max_tokens` generous: a tight cap truncates the reasoning and returns
+empty content rather than a short answer. Counter-intuitively the `-flash`
+variant was worse on both counts (374 completion tokens, 38/40 valid).
+
+    uv run multi-nlu-convert models --filter qwen    # list other candidates
+
+Not every model the catalogue reports as `READY` is deployed serverless; several
+return 404 and would need a dedicated deployment.
 
 Heuristic coverage on a split, without spending anything:
 

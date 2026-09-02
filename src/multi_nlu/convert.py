@@ -78,10 +78,10 @@ def models(
     """List Fireworks models, to pick a real id for `xml --llm`."""
     from fireworks import Fireworks
 
-    client = Fireworks(api_key=os.environ["FIREWORKS_API_KEY"])
-    for m in client.models.list():
-        if filter in m.id:
-            typer.echo(m.id)
+    client = Fireworks(api_key=os.environ["FIREWORKS_API_KEY"], account_id="fireworks")
+    for m in client.models.list(page_size=200):
+        if filter in m.name and m.state == "READY":
+            typer.echo(f"{m.name:<48} {m.display_name}")
 
 
 if __name__ == "__main__":
