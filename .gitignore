@@ -15,4 +15,4 @@ uv.lock
 # generated
 data/
 *.failed.jsonl
-llm-cache.jsonl
+*cache.jsonl
