@@ -1,7 +1,7 @@
 # multi-nlu-data
 
 Data tooling for multi-intent NLU: inspect the Mix\* datasets and convert them
-into per-intent XML. This repo handles **only** the data — modelling lives
+into per-intent character spans. This repo handles **only** the data — modelling lives
 elsewhere and consumes what this produces.
 
 Two datasets are supported, selected with `--dataset`:
@@ -103,17 +103,20 @@ Every command takes `--dataset`, defaulting to `mixsnips`:
 
     uv run multi-nlu show --dataset mixatis --split test
 
-## Converting To XML
+## Converting To Spans
 
-`multi-nlu-convert` recovers per-intent segmentation and emits nested XML:
+`multi-nlu-convert` recovers per-intent segmentation and emits it as half-open
+character offsets into the utterance, with each intent carrying the slots it
+contains:
 
-    <PlayMusic>play <artist>isham jones</artist></PlayMusic>
-    and
-    <RateBook><object_name>swine not</object_name> deserves
-      <rating_value>four</rating_value> <rating_unit>points</rating_unit></RateBook>
+    text     play isham jones and swine not deserves four points
+    spans    [0, 16)  PlayMusic   -> artist       [5, 16)
+             [21, 51) RateBook    -> object_name  [21, 30)
+                                     rating_value [40, 44)
+                                     rating_unit  [45, 51)
 
-Connective tokens sit between segments, outside both tags, so the segments stay
-a clean partition of the content.
+Connective tokens sit between segments, covered by no intent span, so the
+segments stay a clean partition of the content.
 
 ### How Segmentation Is Recovered
 
@@ -163,7 +166,7 @@ slot span, intents a permutation of the row's set) before being accepted.
 Rejected answers are reported, never silently patched.
 
     export FIREWORKS_API_KEY=...
-    uv run multi-nlu-convert xml --split test --llm --out test.jsonl
+    uv run multi-nlu-convert spans --split test --llm --out test.jsonl
 
 `FIREWORKS_API_KEY` must be exported somewhere zsh reads — `~/.zshenv` or
 `~/.zprofile`, **not** `~/.profile`, which zsh ignores.
@@ -178,9 +181,9 @@ reused. `--limit` caps the number of calls for a costed trial run.
 One split per invocation, and one dataset at a time:
 
     mkdir -p data/mixsnips
-    uv run multi-nlu-convert xml --split train      --llm --workers 32 --out data/mixsnips/train.jsonl
-    uv run multi-nlu-convert xml --split validation --llm --workers 32 --out data/mixsnips/validation.jsonl
-    uv run multi-nlu-convert xml --split test       --llm --workers 32 --out data/mixsnips/test.jsonl
+    uv run multi-nlu-convert spans --split train      --llm --workers 32 --out data/mixsnips/train.jsonl
+    uv run multi-nlu-convert spans --split validation --llm --workers 32 --out data/mixsnips/validation.jsonl
+    uv run multi-nlu-convert spans --split test       --llm --workers 32 --out data/mixsnips/test.jsonl
 
 MixSNIPS train takes about 7 minutes at `--workers 32` (roughly 22 at the
 default 8); the other two splits take under a minute each. MixATIS is a smaller
@@ -192,15 +195,20 @@ and the two corpora are unrelated. Writing under `data/<dataset>/` is what
 `multi-nlu-publish` expects by default:
 
     mkdir -p data/mixatis
-    uv run multi-nlu-convert xml --dataset mixatis --split train --llm --workers 32 \
+    uv run multi-nlu-convert spans --dataset mixatis --split train --llm --workers 32 \
         --cache mixatis-cache.jsonl --out data/mixatis/train.jsonl
 
 Each split writes one JSON object per line:
 
 ```json
 {
-  "text": "i want to eat close to bowlegs ...",
-  "xml": "<BookRestaurant>i want to eat <spatial_relation>close</spatial_relation> ...</BookRestaurant> and then <SearchCreativeWork>...</SearchCreativeWork>",
+  "text": "i want to eat close to bowlegs and then show me the movie ...",
+  "intents": [
+    {"intent": "BookRestaurant", "start": 0, "end": 30,
+     "slots": [{"name": "spatial_relation", "start": 14, "end": 19}]},
+    {"intent": "SearchCreativeWork", "start": 40, "end": 61,
+     "slots": [{"name": "object_type", "start": 48, "end": 53}]}
+  ],
   "source": "heuristic"
 }
 ```
@@ -247,7 +255,7 @@ before switching `DEFAULT_MODEL`.
 Not every model the catalogue reports as `READY` is deployed serverless; roughly
 half return 404 and would need a dedicated deployment.
 
-As a cross-check, GLM 5.3 and Kimi K3 produce identical XML on 96% of the 252
+As a cross-check, GLM 5.3 and Kimi K3 produce identical segmentations on 96% of the 252
 rows they both labelled.
 
 Heuristic coverage on a split, without spending anything:
@@ -262,7 +270,7 @@ Heuristic coverage on a split, without spending anything:
     uv run multi-nlu-publish
 
 It reads `data/<dataset>/` and pushes to a **stable repo id**
-(`<user>/<dataset>-xml` unless `--repo` says otherwise). Both defaults follow
+(`<user>/<dataset>-spans` unless `--repo` says otherwise). Both defaults follow
 `--dataset`, so one corpus cannot be published under another's name; override
 the source with `--data` if your files live elsewhere.
 
@@ -309,7 +317,7 @@ rather than accepting that default. **None of this is legal advice.** The chain:
 | ATIS utterances (the text itself)  | LDC93S4B / LDC94S19         | LDC, licence required   |
 | Mix*_clean construction            | `LooperXX/AGIF`             | GPL-2.0, repo-wide      |
 | The mirrors we load                | `nahyeon00`, `gamy0315`     | none declared           |
-| Our segmentation and XML           | this repo + Kimi K3         | ours                    |
+| Our segmentation and spans         | this repo + Kimi K3         | ours                    |
 
 **The two datasets are not in the same position, and MixSNIPS is the far safer
 one to publish.** Treat them separately.

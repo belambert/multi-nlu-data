@@ -1,4 +1,4 @@
-"""CLI for converting the Mix* datasets into segmented, XML-tagged data."""
+"""CLI for converting the Mix* datasets into segmented, span-annotated data."""
 
 import collections
 import json
@@ -9,16 +9,16 @@ from pathlib import Path
 import typer
 
 from multi_nlu_data.data import Dataset, Split
-from multi_nlu_data.segment import segment_split, to_xml
+from multi_nlu_data.segment import segment_split, to_spans
 
-app = typer.Typer(help="Convert the Mix* datasets into per-intent XML.")
+app = typer.Typer(help="Convert the Mix* datasets into per-intent spans.")
 
 DATASET = typer.Option(Dataset.MIXSNIPS, help="Which corpus to convert.")
 SPLIT = typer.Option(Split.TRAIN, help="Which split to convert.")
 
 
 @app.command()
-def xml(
+def spans(
     split: Split = SPLIT,
     dataset: Dataset = DATASET,
     out: Path = typer.Option(None, help="Write JSONL here instead of stdout."),
@@ -32,7 +32,7 @@ def xml(
     limit: int = typer.Option(0, help="Cap the number of LLM calls (0 = no cap)."),
     workers: int = typer.Option(8, help="Concurrent LLM requests."),
 ) -> None:
-    """Segment a split and emit nested intent/slot XML."""
+    """Segment a split and emit intent/slot spans as character offsets."""
     done, todo = segment_split(split, dataset)
     typer.echo(
         f"{dataset}/{split}: {len(done)} resolved by heuristics, {len(todo)} unresolved",
@@ -58,7 +58,7 @@ def xml(
         )
 
     lines = [
-        json.dumps({"text": s.example.text, "xml": to_xml(s), "source": s.source})
+        json.dumps({"text": s.example.text, "intents": to_spans(s), "source": s.source})
         for s in done
     ]
     if out:
@@ -110,7 +110,7 @@ def coverage(split: Split = SPLIT, dataset: Dataset = DATASET) -> None:
 def models(
     filter: str = typer.Option("", help="Substring to match against model ids.")
 ) -> None:
-    """List Fireworks models, to pick a real id for `xml --llm`."""
+    """List Fireworks models, to pick a real id for `spans --llm`."""
     from fireworks import Fireworks
 
     client = Fireworks(api_key=os.environ["FIREWORKS_API_KEY"], account_id="fireworks")

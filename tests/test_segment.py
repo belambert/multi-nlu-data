@@ -1,4 +1,5 @@
 import json
+import re
 from pathlib import Path
 
 import pytest
@@ -14,7 +15,7 @@ from multi_nlu_data.segment import (
     Segmentation,
     learn_slot_intents,
     segment,
-    to_xml,
+    to_spans,
 )
 
 PLAY_RATE = Example(
@@ -74,12 +75,26 @@ def test_unresolvable_when_an_intent_has_no_anchor():
     assert segment(ex, SLOT_INTENTS) is None
 
 
-def test_to_xml_nests_slots_inside_intents_and_escapes():
+def test_to_spans_gives_char_offsets_into_the_text():
     ex = Example(["find", "b&b"], ["O", "B-object_name"], ["SearchCreativeWork"])
     seg = Segmentation(ex, [Segment("SearchCreativeWork", 0, 2)], "single")
-    assert to_xml(seg) == (
-        "<SearchCreativeWork>find <object_name>b&amp;b</object_name></SearchCreativeWork>"
-    )
+    assert to_spans(seg) == [
+        {
+            "intent": "SearchCreativeWork",
+            "start": 0,
+            "end": 8,
+            "slots": [{"name": "object_name", "start": 5, "end": 8}],
+        }
+    ]
+
+
+def test_to_spans_excludes_the_connective_between_segments():
+    seg = segment(PLAY_RATE, SLOT_INTENTS)
+    text = PLAY_RATE.text
+    play, rate = to_spans(seg)
+    assert text[play["start"] : play["end"]] == "play isham jones"
+    assert text[rate["start"] : rate["end"]] == "swine not deserves four points"
+    assert [text[s["start"] : s["end"]] for s in play["slots"]] == ["isham jones"]
 
 
 def test_build_rejects_boundary_inside_a_slot_span():
@@ -135,8 +150,8 @@ def test_report_failures_without_an_output_path_only_warns(tmp_path):
 
 
 def test_read_splits_loads_only_the_files_present(tmp_path):
-    (tmp_path / "train.jsonl").write_text('{"text": "a", "xml": "<X>a</X>"}\n')
-    (tmp_path / "test.jsonl").write_text('{"text": "b", "xml": "<Y>b</Y>"}\n')
+    (tmp_path / "train.jsonl").write_text('{"text": "a", "intents": []}\n')
+    (tmp_path / "test.jsonl").write_text('{"text": "b", "intents": []}\n')
 
     splits = read_splits(tmp_path)
     assert list(splits) == ["train", "test"]
@@ -170,9 +185,10 @@ def test_card_always_states_the_segmentation_is_not_gold():
 
 def test_card_fills_every_placeholder():
     """A typo in a body.md placeholder only shows up at push time otherwise."""
-    card = render_card(DS.MIXSNIPS, "mixsnips-xml", "abc123")
-    assert "{" not in card and "}" not in card
-    assert "mixsnips-xml" in card and "abc123" in card
+    card = render_card(DS.MIXSNIPS, "mixsnips-spans", "abc123")
+    # the JSON example has braces of its own, so look only for {placeholder} names
+    assert not re.search(r"\{\w+\}", card)
+    assert "mixsnips-spans" in card and "abc123" in card
 
 
 def test_publish_data_dir_defaults_per_dataset(tmp_path, monkeypatch):

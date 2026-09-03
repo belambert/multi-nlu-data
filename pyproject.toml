@@ -1,7 +1,7 @@
 [project]
 name = "multi-nlu-data"
 version = "0.1.0"
-description = "Multi-intent NLU datasets: inspection and conversion to per-intent XML"
+description = "Multi-intent NLU datasets: inspection and conversion to per-intent spans"
 readme = "README.md"
 authors = [
     { name = "Ben Lambert", email = "blambert@gmail.com" }

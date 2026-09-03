@@ -9,7 +9,6 @@ whichever corpus is loaded. Rows the heuristics cannot settle go to an LLM.
 """
 
 from dataclasses import dataclass
-from xml.sax.saxutils import escape
 
 from multi_nlu_data.data import Dataset, Example, Split, load
 
@@ -134,24 +133,33 @@ def spans(ex: Example) -> list[tuple[int, int, str]]:
     return [tuple(s) for s in out]
 
 
-def to_xml(seg: Segmentation) -> str:
-    """Render as nested intent/slot XML; connective tokens sit between segments."""
-    slot_at = {st: (en, name) for st, en, name in spans(seg.example)}
-    toks = seg.example.tokens
+def to_spans(seg: Segmentation) -> list[dict]:
+    """Intent spans as character offsets into the example text, each carrying its slots.
 
+    Offsets are half-open [start, end) into `Example.text`; connective tokens
+    between segments fall outside every span.
+    """
+    off = offsets(seg.example.tokens)
+    slots = spans(seg.example)
+    return [
+        {
+            "intent": s.intent,
+            "start": off[s.start],
+            "end": off[s.end] - 1,
+            "slots": [
+                {"name": name, "start": off[st], "end": off[en] - 1}
+                for st, en, name in slots
+                if s.start <= st < s.end
+            ],
+        }
+        for s in seg.segments
+    ]
+
+
+def offsets(tokens: list[str]) -> list[int]:
+    """Character offset of each token in the joined text, plus a trailing sentinel."""
     out, pos = [], 0
-    for s in seg.segments:
-        out.extend(escape(t) for t in toks[pos : s.start])  # connective
-        inner, i = [], s.start
-        while i < s.end:
-            if i in slot_at:
-                end, name = slot_at[i]
-                inner.append(f"<{name}>{escape(' '.join(toks[i:end]))}</{name}>")
-                i = end
-            else:
-                inner.append(escape(toks[i]))
-                i += 1
-        out.append(f"<{s.intent}>{' '.join(inner)}</{s.intent}>")
-        pos = s.end
-    out.extend(escape(t) for t in toks[pos:])
-    return " ".join(out)
+    for t in tokens:
+        out.append(pos)
+        pos += len(t) + 1
+    return out + [pos]
