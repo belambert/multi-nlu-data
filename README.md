@@ -271,9 +271,9 @@ Heuristic coverage on a split, without spending anything:
     uv run multi-nlu-publish
 
 It reads `data/<dataset>/` and pushes to a **stable repo id**
-(`<user>/<dataset>-spans` unless `--repo` says otherwise). Both defaults follow
-`--dataset`, so one corpus cannot be published under another's name; override
-the source with `--data` if your files live elsewhere.
+(`<user>/<dataset>-intent-spans` unless `--repo` says otherwise). Both defaults
+follow `--dataset`, so one corpus cannot be published under another's name;
+override the source with `--data` if your files live elsewhere.
 
 Hub datasets are git repos, so pushing the same id again adds a revision to the
 existing dataset rather than creating a new one — re-run it after regenerating

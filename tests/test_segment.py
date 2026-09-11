@@ -185,10 +185,10 @@ def test_card_always_states_the_segmentation_is_not_gold():
 
 def test_card_fills_every_placeholder():
     """A typo in a body.md placeholder only shows up at push time otherwise."""
-    card = render_card(DS.MIXSNIPS, "mixsnips-spans", "abc123")
+    card = render_card(DS.MIXSNIPS, "mixsnips-intent-spans", "abc123")
     # the JSON example has braces of its own, so look only for {placeholder} names
     assert not re.search(r"\{\w+\}", card)
-    assert "mixsnips-spans" in card and "abc123" in card
+    assert "mixsnips-intent-spans" in card and "abc123" in card
 
 
 def test_publish_data_dir_defaults_per_dataset(tmp_path, monkeypatch):

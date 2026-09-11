@@ -38,7 +38,7 @@ def push(
         None, help="Converted JSONL directory; defaults to data/<dataset>."
     ),
     repo: str = typer.Option(
-        None, help="Target repo id; defaults to <user>/<dataset>-spans."
+        None, help="Target repo id; defaults to <user>/<dataset>-intent-spans."
     ),
     private: bool = typer.Option(
         True, help="Create the dataset private (first push only)."
@@ -54,7 +54,7 @@ def push(
     # tie the default to --dataset, so one corpus cannot be published as another
     data = data or Path("data") / dataset
     splits = {} if card_only else read_splits(data)
-    repo = repo or f"{whoami()['name']}/{dataset}-spans"
+    repo = repo or f"{whoami()['name']}/{dataset}-intent-spans"
     rev = source_revision()
     message = message or f"Update from multi-nlu-data@{rev}"
 
