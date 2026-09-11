@@ -115,6 +115,7 @@ contains:
                                      rating_value [40, 44)
                                      rating_unit  [45, 51)
 
+Offsets count Unicode codepoints, so `text[start:end]` is the span in Python.
 Connective tokens sit between segments, covered by no intent span, so the
 segments stay a clean partition of the content.
 

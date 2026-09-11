@@ -24,8 +24,9 @@ offsets into `text`, with slot spans nested under the intent that owns them.
 }}
 ```
 
-Offsets are half-open, so `text[start:end]` is the span. Connective tokens
-("and then") sit between segments, covered by no intent span.
+Offsets count Unicode codepoints into `text` — Python characters, not UTF-8
+bytes or UTF-16 units — and are half-open, so `text[start:end]` is the span.
+Connective tokens ("and then") sit between segments, covered by no intent span.
 
 ## Fields
 
