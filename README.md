@@ -294,7 +294,7 @@ re-uploading the data:
     uv run multi-nlu-publish --card-only
 
 Datasets are created **private** by default; pass `--no-private` to publish
-openly, and see the licence TODO below before doing so for MixATIS.
+openly, and see [License](#license) before doing so for MixATIS.
 
 ### Caveat
 
@@ -304,55 +304,25 @@ confident answer, not a measured accuracy. Spot-check a sample before treating
 the output as training data — especially for MixATIS, where over half of train
 rests on the LLM rather than on the better-corroborated heuristics.
 
-## TODO
+## License
 
-### Settle The License Before Publishing Openly
+**Unsettled, and none of this is legal advice.** The card declares `cc-by-4.0`
+unless `--license` says otherwise, but that tag is a placeholder — hence the
+private default.
 
-Publishing defaults to private, so this only blocks going public. The card
-declares `cc-by-4.0` unless `--license` says otherwise; decide deliberately
-rather than accepting that default. **None of this is legal advice.** The chain:
+| Layer                              | Source                  | License                 |
+| ---------------------------------- | ----------------------- | ----------------------- |
+| SNIPS utterances (the text itself) | `sonos/nlu-benchmark`   | CC0-1.0 (public domain) |
+| ATIS utterances (the text itself)  | LDC93S4B / LDC94S19     | copyright LDC           |
+| Mix*_clean construction            | `LooperXX/AGIF`         | GPL-2.0, repo-wide      |
+| The mirrors we load                | `nahyeon00`, `gamy0315` | none declared           |
+| Our segmentation and spans         | this repo + Kimi K3     | ours                    |
 
-| Layer                              | Source                      | License                 |
-| ---------------------------------- | --------------------------- | ----------------------- |
-| SNIPS utterances (the text itself) | `sonos/nlu-benchmark`       | CC0-1.0 (public domain) |
-| ATIS utterances (the text itself)  | LDC93S4B / LDC94S19         | LDC, licence required   |
-| Mix*_clean construction            | `LooperXX/AGIF`             | GPL-2.0, repo-wide      |
-| The mirrors we load                | `nahyeon00`, `gamy0315`     | none declared           |
-| Our segmentation and spans         | this repo + Kimi K3         | ours                    |
-
-**The two datasets are not in the same position, and MixSNIPS is the far safer
-one to publish.** Treat them separately.
-
-For MixSNIPS both ends are clear. The base data is CC0, which permits
-redistribution and derivatives and only *requests* a citation of the Snips
-paper. Fireworks' terms §3.2 and §7 give the customer ownership of Output, with
-no restriction on redistributing it, so the model-derived annotations are ours.
-
-For MixATIS the base data is **not** public domain. ATIS is distributed by the
-Linguistic Data Consortium under a licence agreement, and LDC corpora generally
-prohibit redistribution — that the utterances circulate widely in SLU research
-repos does not change their terms. Confirm the position before uploading
-anything containing ATIS text; the annotations-only option below matters much
-more here.
-
-The middle layer is unclear for both. AGIF is GPL-2.0 across the whole repo, and
-its README asks only that you cite the paper for "any source codes or the
-datasets", setting no data-specific license. Two things soften that: GPL is a
-software licence aimed at the model code, and AGIF cannot relicense CC0
-public-domain text — at most it could claim a thin compilation right in the
-arrangement, which a random mechanical concatenation is unlikely to attract.
-That reasoning does not rescue MixATIS, whose underlying text was never free.
-
-Options, in the order worth considering:
-
-1.  Publish MixSNIPS with a CC-BY-4.0 or CC0 licence, documenting the chain above
-    openly and citing both the Snips and AGIF papers. Transparent provenance
-    matters more here than the licence tag.
-2.  Publish only the annotations — segmentation boundaries keyed to an utterance
-    hash, no source text — which sidesteps redistribution entirely. This is the
-    default answer for MixATIS, not just a fallback.
-3.  Regenerate MixSNIPS from CC0 SNIPS directly, removing AGIF from the chain at
-    the cost of comparability with the published benchmark.
+- **MixSNIPS** looks safe to publish openly. The SNIPS text is CC0, the
+  LLM-derived spans are ours under Fireworks' terms (§3.2, §7), and AGIF's
+  repo-wide GPL-2.0 targets its code and cannot relicense CC0 text. Cite the
+  Snips and AGIF papers.
+- **MixATIS**: the ATIS text is copyright LDC.
 
 References: [nlu-benchmark](https://github.com/snipsco/nlu-benchmark),
 [ATIS at LDC](https://catalog.ldc.upenn.edu/LDC93S4B),
