@@ -1,29 +1,24 @@
 # multi-nlu-data
 
 Data tooling for multi-intent NLU: inspect the Mix\* datasets and convert them
-into per-intent character spans. This repo handles **only** the data — modelling lives
-elsewhere and consumes what this produces.
+into per-intent character spans. Modelling lives elsewhere.
 
-Two datasets are supported, selected with `--dataset`:
+Two datasets are supported, selected with `--dataset` (default `mixsnips`):
 
-| `--dataset` | Source                                                                       | Train  | Validation | Test  | Intents      | Slot types |
-| ----------- | ---------------------------------------------------------------------------- | ------ | ---------- | ----- | ------------ | ---------- |
-| `mixsnips`  | [nahyeon00/mixsnips_clean](https://huggingface.co/datasets/nahyeon00/mixsnips_clean) | 39,776 | 2,198      | 2,199 | 7            | 39         |
-| `mixatis`   | [gamy0315/mixatis_clean](https://huggingface.co/datasets/gamy0315/mixatis_clean)     | 13,162 | 759        | 828   | 18 (17 in train) | 74     |
+| `--dataset` | Source                                                                               | Train  | Validation | Test  | Intents          | Slot types |
+| ----------- | ------------------------------------------------------------------------------------ | ------ | ---------- | ----- | ---------------- | ---------- |
+| `mixsnips`  | [nahyeon00/mixsnips_clean](https://huggingface.co/datasets/nahyeon00/mixsnips_clean) | 39,776 | 2,198      | 2,199 | 7                | 39         |
+| `mixatis`   | [gamy0315/mixatis_clean](https://huggingface.co/datasets/gamy0315/mixatis_clean)     | 13,162 | 759        | 828   | 18 (17 in train) | 74         |
 
-Both compose single-intent utterances into one utterance carrying one to three
-intents (e.g. "play anything by george formby jr, give zero points out of 6 to
-the devil in a forest and also can i get the showtimes for the jade faced
-assassin cinema"), with BIO slot tags alongside the intent set. They share a
-schema and a construction method, so everything here works on either;
-`mixsnips` is the default.
+Both join single-intent utterances into one carrying one to three intents (e.g.
+"play anything by george formby jr, give zero points out of 6 to the devil in a
+forest and also can i get the showtimes for the jade faced assassin cinema"),
+with BIO slot tags. They share a schema, so everything here works on either.
 
 ## Native Dataset Format
 
-Useful to know before converting the data into a modeling format. Each row has
-exactly three fields, all lists of strings — there are no `ClassLabel` features
-or label-id mappings, so nothing needs a vocabulary file to interpret. The
-figures below are for MixSNIPS; MixATIS differs in scale but not in shape.
+Each row has three fields, all lists of strings, with no `ClassLabel` features
+or label-id mappings. Figures are for MixSNIPS; MixATIS has the same shape.
 
 ```python
 {
@@ -33,53 +28,27 @@ figures below are for MixSNIPS; MixATIS differs in scale but not in shape.
 }
 ```
 
-| Field    | Type           | Notes                                                       |
-| -------- | -------------- | ----------------------------------------------------------- |
-| `token`  | `list[str]`    | Word-level tokens, one per position; 11,409 distinct in train |
-| `tag`    | `list[str]`    | BIO slot tags, aligned 1:1 with `token`; 39 slot types       |
-| `intent` | `list[str]`    | Always one element: the intents joined by `#`                |
+| Field    | Type        | Notes                                                         |
+| -------- | ----------- | ------------------------------------------------------------- |
+| `token`  | `list[str]` | Word-level tokens, one per position; 11,409 distinct in train |
+| `tag`    | `list[str]` | BIO slot tags, aligned 1:1 with `token`; 39 slot types        |
+| `intent` | `list[str]` | Always one element: the intents joined by `#`                 |
 
-### Tokens
+**Tokens** are lowercased whole words, not subwords, averaging 19.7 per
+utterance (range 2–54). Punctuation splitting is inconsistent (`,` stands alone
+but `tsuihou:` and `maliau-basin-conservation-area` stay whole), and train has
+one mojibake token (`������`) worth normalizing before exact-match scoring. An
+encoder tagger needs the usual word-to-subword alignment via `word_ids()`.
 
-Whitespace-level natural words, not subwords — there are no `##`, `Ġ`, or `▁`
-markers and no token contains a space. Everything is lowercased. Punctuation is
-split inconsistently: `,` `&` `/` `-` appear as standalone tokens, but some
-tokens keep punctuation attached (`tsuihou:`, `philosopher's`) and hyphenated
-entity names stay whole (`maliau-basin-conservation-area`). Utterances average
-19.7 tokens and range from 2 to 54. The train vocabulary contains one mojibake
-token (`������`) worth normalizing away before exact-match scoring.
+**Tags** are clean BIO: lengths always match, and every `I-x` follows a `B-x` or
+`I-x`, so a single-pass decoder is safe (`Example.slots` in `data.py`). Slots
+are **not** attributed to an intent.
 
-Because the tags are aligned to *these* word tokens, an encoder tagger needs the
-usual word-to-subword alignment: tokenize with `is_split_into_words=True`, then
-project each word's tag onto its first subword via `word_ids()` and mask the
-rest with `-100`.
-
-### Tags
-
-Standard BIO. Verified across all 39,776 train rows: `tag` is the same length as
-`token` in every row, only `O`/`B-`/`I-` prefixes occur, and every `I-x` follows
-a `B-x` or `I-x` of the same type — there are no orphan `I-` tags, so a
-single-pass span decoder is safe. `Example.slots` in `data.py` does this decoding.
-
-Note that spans are **not** attributed to a particular intent. A three-intent
-utterance yields one flat span list, and recovering which intent owns which slot
-requires inferring it from the slot type or token position.
-
-### Intents
-
-MixSNIPS has seven, inherited from SNIPS: `AddToPlaylist`, `BookRestaurant`,
-`GetWeather`, `PlayMusic`, `RateBook`, `SearchCreativeWork`,
-`SearchScreeningEvent`. One to three per utterance (450 / 1,249 / 500 of the
-2,199 test rows). MixATIS has 18 `atis_*` intents over the same 1–3 range, but
-they are not distributed evenly across splits: 17 occur in train, 16 in test and
-14 in validation. `atis_day_name` appears in **test but never in train**, so any
-model evaluated on MixATIS faces one intent it cannot have learned.
-
-The `#`-joined list is alphabetically sorted in all 39,776 train rows, so its
-order says nothing about the order the intents appear in the utterance. Treat
-intents as a **set**: score with set-based exact match, and if a generative model
-is asked to emit them, either sort its output before comparing or compare as
-sets. The same intent never repeats within a row.
+**Intents** are a sorted, `#`-joined set, so their order says nothing about
+utterance order; score with set-based exact match. MixSNIPS has the seven SNIPS
+intents, with 450 / 1,249 / 500 test rows carrying one / two / three. MixATIS
+has 18 `atis_*` intents, unevenly split: `atis_day_name` appears in test but
+**never in train**.
 
 ## Setup
 
@@ -87,27 +56,15 @@ sets. The same intent never repeats within a row.
 
 ## Usage
 
-Print examples from a split:
-
-    uv run multi-nlu show --split test --n 5
-
-Sample randomly instead of taking the first `n`:
-
-    uv run multi-nlu show --seed 0
-
-Show intent counts and how many intents appear per utterance:
-
-    uv run multi-nlu stats --split train
-
-Every command takes `--dataset`, defaulting to `mixsnips`:
-
+    uv run multi-nlu show --split test --n 5           # print examples
+    uv run multi-nlu show --seed 0                     # sample randomly
+    uv run multi-nlu stats --split train               # intent counts
     uv run multi-nlu show --dataset mixatis --split test
 
 ## Converting To Spans
 
-`multi-nlu-convert` recovers per-intent segmentation and emits it as half-open
-character offsets into the utterance, with each intent carrying the slots it
-contains:
+`multi-nlu-convert` recovers per-intent segmentation as half-open character
+offsets, with each intent carrying its slots:
 
     text     play isham jones and swine not deserves four points
     spans    [0, 16)  PlayMusic   -> artist       [5, 16)
@@ -115,91 +72,57 @@ contains:
                                      rating_value [40, 44)
                                      rating_unit  [45, 51)
 
-Offsets count Unicode codepoints, so `text[start:end]` is the span in Python.
-Connective tokens sit between segments, covered by no intent span, so the
-segments stay a clean partition of the content.
+Offsets count Unicode codepoints, so `text[start:end]` works in Python.
+Connectives between segments belong to no span.
 
 ### How Segmentation Is Recovered
 
-The datasets have no intent spans (see above), so they are approximated from two
-free signals. Neither is hard-coded per dataset — the slot map is learned from
-whichever corpus is loaded.
+Two signals, both learned from whichever corpus is loaded:
 
-1.  **Slot-to-intent anchors.** Single-intent rows label their own slots
-    unambiguously, giving a slot type to intent map for free. In MixSNIPS, 28 of
-    39 slot types are globally unambiguous — and the other 11 usually resolve
-    *within a row*, since only that row's intents are candidates (`artist` is
-    PlayMusic-or-AddToPlaylist in general, but forced in a
-    `{PlayMusic, GetWeather}` row).
-2.  **Connectives.** The seam is marked by the phrase used to join the source
-    utterances, ranked strongest-first: `and also`/`and then` beat `also`/`then`,
-    which beat `,`, which beats a bare `and`. The ranking matters — bare `and`
-    also occurs inside entity names, and using it indiscriminately drops
-    resolution from 88% to 43%.
-
-Anchors give the intent order and bracket where each seam must lie; the
-strongest connective in that gap places it. Reassuringly, anchors never
-interleave in any of the 31,499 multi-intent MixSNIPS train rows, which is what
-you would expect if the concatenation structure holds.
-
-How far that gets varies sharply by dataset:
+1.  **Slot-to-intent anchors.** Single-intent rows map slot types to intents.
+    Ambiguous types often resolve within a row, since only that row's intents
+    are candidates.
+2.  **Connectives.** Seams are placed at the strongest joining phrase between
+    anchors: `and also`/`and then` > `also`/`then` > `,` > bare `and`. The
+    ranking matters, as bare `and` also occurs inside entity names.
 
 | Train split | Single | Heuristic | Unresolved | Resolved free |
 | ----------- | ------ | --------- | ---------- | ------------- |
 | `mixsnips`  | 8,277  | 26,713    | 4,786      | **88.0%**     |
 | `mixatis`   | 1,118  | 4,763     | 7,281      | **44.7%**     |
 
-MixATIS is much harder because it has twice the slot types (74 vs 39) spread
-over more intents, and they are shared — `fromloc.city_name` and `airline_name`
-appear under most of the `atis_*` intents, so far fewer spans pin down a single
-one. Per row converted it sends **4.6× as many rows to the LLM** (55.3% of train
-versus 12.0%). Check before running:
+MixATIS resolves far less because its 74 slot types are widely shared across
+intents. Check coverage for free:
 
     uv run multi-nlu-convert coverage --dataset mixatis --split train
 
 ### LLM Fallback
 
-Unresolved rows go to an open model on Fireworks. The model is asked only for
-what the heuristics could not pin down — the intent order and the seam
-positions, as token indices rather than free text — so every answer is validated
-against the BIO spans (boundaries in range, strictly increasing, never inside a
-slot span, intents a permutation of the row's set) before being accepted.
-Rejected answers are reported, never silently patched.
+Unresolved rows go to an open model on Fireworks, which returns only the intent
+order and seam positions as token indices. Answers are validated against the BIO
+spans and rejected ones are reported, never patched.
 
-    export FIREWORKS_API_KEY=...
+    export FIREWORKS_API_KEY=...    # in ~/.zshenv or ~/.zprofile, not ~/.profile
     uv run multi-nlu-convert spans --split test --llm --out test.jsonl
 
-`FIREWORKS_API_KEY` must be exported somewhere zsh reads — `~/.zshenv` or
-`~/.zprofile`, **not** `~/.profile`, which zsh ignores.
-
-Answers are cached to `llm-cache.jsonl` and reused, so a re-run or a resume
-after a crash costs nothing. The cache is keyed by utterance text alone, so
-**delete it when changing model** or the previous model's answers are silently
-reused. `--limit` caps the number of calls for a costed trial run.
+Answers are cached in `llm-cache.jsonl`, keyed by utterance text alone, so
+**delete the cache when changing model**. `--limit` caps calls for a trial run.
 
 ### Running The Full Conversion
-
-One split per invocation, and one dataset at a time:
 
     mkdir -p data/mixsnips
     uv run multi-nlu-convert spans --split train      --llm --workers 32 --out data/mixsnips/train.jsonl
     uv run multi-nlu-convert spans --split validation --llm --workers 32 --out data/mixsnips/validation.jsonl
     uv run multi-nlu-convert spans --split test       --llm --workers 32 --out data/mixsnips/test.jsonl
 
-MixSNIPS train takes about 7 minutes at `--workers 32` (roughly 22 at the
-default 8); the other two splits take under a minute each. MixATIS is a smaller
-corpus but resolves far less heuristically, so its train split makes about 1.5×
-as many LLM calls despite having a third of the rows.
-
-Give each dataset its own `--cache`, since the cache is keyed by utterance text
-and the two corpora are unrelated. Writing under `data/<dataset>/` is what
-`multi-nlu-publish` expects by default:
+MixSNIPS train takes about 7 minutes at `--workers 32`; the other splits under a
+minute. Give each dataset its own cache:
 
     mkdir -p data/mixatis
     uv run multi-nlu-convert spans --dataset mixatis --split train --llm --workers 32 \
         --cache mixatis-cache.jsonl --out data/mixatis/train.jsonl
 
-Each split writes one JSON object per line:
+Each line of output is one row:
 
 ```json
 {
@@ -214,114 +137,71 @@ Each split writes one JSON object per line:
 }
 ```
 
-`source` is `single`, `heuristic`, or `llm`, so rows can be filtered or weighted
-by how they were derived — the `llm` rows are the least corroborated. Without
-`--out` the JSONL goes to stdout and progress to stderr, so redirection works
-the same way.
-
-Rows whose segmentation could not be settled are **not** in that file, since
-there is nothing to emit for them. They are written to a `.failed.jsonl` sidecar
-beside the output (`data/mixsnips/train.failed.jsonl`) with their tokens and intents, and
-the run prints a warning naming the file. A clean full run leaves no sidecar at
-all; `wc -l` across the output and the sidecar should equal the split size.
+`source` is `single`, `heuristic` or `llm`; `llm` rows are the least
+corroborated. Rows that could not be segmented go to a `.failed.jsonl` sidecar
+beside the output, so output plus sidecar should equal the split size.
 
 ### Choosing A Model
 
-The default is Kimi K3 (`accounts/fireworks/models/kimi-k3`) with thinking
-disabled, picked by benchmarking candidates against 40 rows the heuristics had
-already settled — which gives an accuracy proxy for free, since no gold
-segmentation exists. On the full test split it labelled 252 of 252 unresolved
-rows with no validation failures, in 70 seconds.
+The default is Kimi K3 with thinking disabled, chosen by agreement with 40
+heuristically settled rows:
 
-| Model               | Thinking | Agrees | Completion tok |
-| ------------------- | -------- | ------ | -------------- |
-| `kimi-k3`           | off      | 40/40  | 23             |
-| `glm-5p3`           | forced   | 40/40  | 35             |
-| `glm-5p2`           | off      | 39/40  | 21             |
-| `kimi-k2p6`         | off      | 39/40  | 22             |
-| `qwen3p8-max`       | off      | 39/40  | 22             |
-| `qwen3p7-plus`      | off      | 38/40  | 26             |
+| Model          | Thinking | Agrees | Completion tok |
+| -------------- | -------- | ------ | -------------- |
+| `kimi-k3`      | off      | 40/40  | 23             |
+| `glm-5p3`      | forced   | 40/40  | 35             |
+| `glm-5p2`      | off      | 39/40  | 21             |
+| `kimi-k2p6`    | off      | 39/40  | 22             |
+| `qwen3p8-max`  | off      | 39/40  | 22             |
+| `qwen3p7-plus` | off      | 38/40  | 26             |
 
-At n=40 a one-row difference is noise, so these are equivalent on accuracy;
-thinking behaviour is the real differentiator. **Whether thinking can be
-disabled is per-model, not per-family** — `glm-5p2` accepts
-`reasoning_effort="none"`, `glm-5p3` rejects it and every other way of turning
-thinking off. On a model that ignores the flag, reasoning silently consumes the
-completion budget and the answer comes back as empty content rather than an
-error, so `max_tokens` must be raised to compensate. Verify with a single call
-before switching `DEFAULT_MODEL`.
+Accuracy differences at n=40 are noise. Whether thinking can be disabled is
+per-model: on a model that ignores the flag, reasoning eats the token budget and
+returns empty content, so test one call before changing `DEFAULT_MODEL`. About
+half the catalogue isn't deployed serverless and returns 404.
 
-    uv run multi-nlu-convert models --filter kimi    # list other candidates
+    uv run multi-nlu-convert models --filter kimi
 
-Not every model the catalogue reports as `READY` is deployed serverless; roughly
-half return 404 and would need a dedicated deployment.
+## Publishing To Hugging Face
 
-As a cross-check, GLM 5.3 and Kimi K3 produce identical segmentations on 96% of the 252
-rows they both labelled.
-
-Heuristic coverage on a split, without spending anything:
-
-    uv run multi-nlu-convert coverage --split train
-
-## Publishing To HuggingFace
-
-`multi-nlu-publish` uploads the converted splits as a dataset:
-
-    uv run multi-nlu-publish --dry-run          # report what would be pushed
+    uv run multi-nlu-publish --dry-run
     uv run multi-nlu-publish
 
-It reads `data/<dataset>/` and pushes to a **stable repo id**
-(`<user>/<dataset>-intent-spans` unless `--repo` says otherwise). Both defaults
-follow `--dataset`, so one corpus cannot be published under another's name;
-override the source with `--data` if your files live elsewhere.
+This reads `data/<dataset>/` and pushes to `<user>/<dataset>-intent-spans`
+(override with `--data` and `--repo`). Re-pushing adds a revision to the same
+dataset, with a commit message naming this repo's git revision.
 
-Hub datasets are git repos, so pushing the same id again adds a revision to the
-existing dataset rather than creating a new one — re-run it after regenerating
-and the dataset moves forward in place, with history kept.
-
-Each commit is messaged `Update from multi-nlu-data@<rev>`, naming the git
-revision of this repo that produced it (suffixed `-dirty` when the tree has
-uncommitted changes), so a dataset revision can be traced back to the code.
-
-The card is rewritten on every push, so its prose stays in step with the data —
-and so hand-edits made in the Hub's web UI are overwritten. The text lives in
-`src/multi_nlu_data/cards/`: `body.md` is the shared template, and
-`mixsnips.md` / `mixatis.md` hold the provenance paragraph for each corpus. Card
-metadata (`license`, `tags`, `task_categories`) is set in `publish.py`, since
-the Hub validates those against a fixed list. To iterate on wording without
-re-uploading the data:
+The card is regenerated on every push, overwriting web edits. Its text lives in
+`src/multi_nlu_data/cards/`; its metadata is set in `publish.py`. To update only
+the card:
 
     uv run multi-nlu-publish --card-only
 
-Datasets are created **private** by default; pass `--no-private` to publish
-openly, and see [License](#license) before doing so for MixATIS.
+Datasets are **private** by default; see [License](#license) before passing
+`--no-private`.
 
 ### Caveat
 
-The segmentation is **approximate and unvalidated**. Neither dataset ships gold
-boundaries, so the coverage figures are the rate at which the heuristics reach a
-confident answer, not a measured accuracy. Spot-check a sample before treating
-the output as training data — especially for MixATIS, where over half of train
-rests on the LLM rather than on the better-corroborated heuristics.
+The segmentation is **approximate and unvalidated**: there are no gold
+boundaries, so coverage is not accuracy. Spot-check before training on it,
+especially MixATIS, where over half of train relies on the LLM.
 
 ## License
 
-**Unsettled, and none of this is legal advice.** The card declares `cc-by-4.0`
-unless `--license` says otherwise, but that tag is a placeholder — hence the
-private default.
+**Unsettled, and none of this is legal advice.** The card's `cc-by-4.0` default
+(`--license`) is a placeholder.
 
-| Layer                              | Source                  | License                 |
-| ---------------------------------- | ----------------------- | ----------------------- |
-| SNIPS utterances (the text itself) | `sonos/nlu-benchmark`   | CC0-1.0 (public domain) |
-| ATIS utterances (the text itself)  | LDC93S4B / LDC94S19     | copyright LDC           |
-| Mix*_clean construction            | `LooperXX/AGIF`         | GPL-2.0, repo-wide      |
-| The mirrors we load                | `nahyeon00`, `gamy0315` | none declared           |
-| Our segmentation and spans         | this repo + Kimi K3     | ours                    |
+| Layer                      | Source                  | License                 |
+| -------------------------- | ----------------------- | ----------------------- |
+| SNIPS utterances           | `sonos/nlu-benchmark`   | CC0-1.0 (public domain) |
+| ATIS utterances            | LDC93S4B / LDC94S19     | copyright LDC           |
+| Mix*_clean construction    | `LooperXX/AGIF`         | GPL-2.0, repo-wide      |
+| The mirrors we load        | `nahyeon00`, `gamy0315` | none declared           |
+| Our segmentation and spans | this repo + Kimi K3     | ours                    |
 
-- **MixSNIPS** looks safe to publish openly. The SNIPS text is CC0, the
-  LLM-derived spans are ours under Fireworks' terms (§3.2, §7), and AGIF's
-  repo-wide GPL-2.0 targets its code and cannot relicense CC0 text. Cite the
-  Snips and AGIF papers.
+- **MixSNIPS** looks safe to publish openly: the text is CC0, the spans are ours
+  under Fireworks' terms (§3.2, §7), and AGIF's GPL-2.0 cannot relicense CC0
+  text. Cite the Snips and AGIF papers.
 - **MixATIS**: the ATIS text is copyright LDC.
 
 References: [nlu-benchmark](https://github.com/snipsco/nlu-benchmark),
@@ -332,8 +212,6 @@ References: [nlu-benchmark](https://github.com/snipsco/nlu-benchmark),
 [Fireworks terms](https://fireworks.ai/terms-of-service).
 
 ## Development
-
-Format and check:
 
     uv run black .
     uv run isort .
