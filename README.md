@@ -188,9 +188,6 @@ especially MixATIS, where over half of train relies on the LLM.
 
 ## License
 
-**Unsettled, and none of this is legal advice.** The card's `cc-by-4.0` default
-(`--license`) is a placeholder.
-
 | Layer                      | Source                  | License                 |
 | -------------------------- | ----------------------- | ----------------------- |
 | SNIPS utterances           | `sonos/nlu-benchmark`   | CC0-1.0 (public domain) |
